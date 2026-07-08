@@ -1,0 +1,203 @@
+0 verbose cli D:\Tools\nodejs\node.exe D:\Tools\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.12.1
+2 info using node@v24.15.0
+3 silly config load:file:D:\Tools\nodejs\node_modules\npm\npmrc
+4 silly config load:file:C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\2ef040366b1faa6\.npmrc
+5 silly config load:file:C:\Users\38939\.npmrc
+6 silly config load:file:C:\Users\38939\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm install
+8 verbose argv "install" "--ignore-scripts" "--cache" ".\\.npm-cache"
+9 verbose logfile logs-max:10 dir:C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\2ef040366b1faa6\.npm-cache\_logs\2026-06-09T07_28_31_070Z-
+10 verbose logfile C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\2ef040366b1faa6\.npm-cache\_logs\2026-06-09T07_28_31_070Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+13 silly idealTree buildDeps
+14 silly fetch manifest @types/react@^18.3.0
+15 silly packumentCache full:https://registry.npm.taobao.org/@types%2freact cache-miss
+16 http fetch GET 200 https://registry.npmmirror.com/@types%2freact 447ms (cache miss)
+17 silly packumentCache full:https://registry.npm.taobao.org/@types%2freact set size:336826 disposed:false
+18 silly fetch manifest @types/react-dom@^18.3.0
+19 silly packumentCache full:https://registry.npm.taobao.org/@types%2freact-dom cache-miss
+20 http fetch GET 200 https://registry.npmmirror.com/@types%2freact-dom 75ms (cache miss)
+21 silly packumentCache full:https://registry.npm.taobao.org/@types%2freact-dom set size:82926 disposed:false
+22 silly placeDep ROOT @types/react@18.3.31 OK for: wolfarena-frontend@0.1.0 want: ^18.3.0
+23 silly placeDep ROOT @types/react-dom@18.3.7 OK for: wolfarena-frontend@0.1.0 want: ^18.3.0
+24 silly fetch manifest csstype@^3.2.2
+25 silly packumentCache full:https://registry.npm.taobao.org/csstype cache-miss
+26 silly fetch manifest @types/prop-types@*
+27 silly packumentCache full:https://registry.npm.taobao.org/@types%2fprop-types cache-miss
+28 http fetch GET 200 https://registry.npmmirror.com/csstype 50ms (cache miss)
+29 silly packumentCache full:https://registry.npm.taobao.org/csstype set size:41498 disposed:false
+30 http fetch GET 200 https://registry.npmmirror.com/@types%2fprop-types 112ms (cache miss)
+31 silly packumentCache full:https://registry.npm.taobao.org/@types%2fprop-types set size:10437 disposed:false
+32 silly placeDep ROOT @types/prop-types@15.7.15 OK for: @types/react@18.3.31 want: *
+33 silly placeDep ROOT csstype@3.2.3 OK for: @types/react@18.3.31 want: ^3.2.2
+34 silly reify moves {}
+35 silly audit bulk request {
+35 silly audit   '@babel/code-frame': [ '7.29.7' ],
+35 silly audit   '@babel/compat-data': [ '7.29.7' ],
+35 silly audit   '@babel/core': [ '7.29.7' ],
+35 silly audit   '@babel/generator': [ '7.29.7' ],
+35 silly audit   '@babel/helper-compilation-targets': [ '7.29.7' ],
+35 silly audit   '@babel/helper-globals': [ '7.29.7' ],
+35 silly audit   '@babel/helper-module-imports': [ '7.29.7' ],
+35 silly audit   '@babel/helper-module-transforms': [ '7.29.7' ],
+35 silly audit   '@babel/helper-plugin-utils': [ '7.29.7' ],
+35 silly audit   '@babel/helper-string-parser': [ '7.29.7' ],
+35 silly audit   '@babel/helper-validator-identifier': [ '7.29.7' ],
+35 silly audit   '@babel/helper-validator-option': [ '7.29.7' ],
+35 silly audit   '@babel/helpers': [ '7.29.7' ],
+35 silly audit   '@babel/parser': [ '7.29.7' ],
+35 silly audit   '@babel/plugin-transform-react-jsx-self': [ '7.29.7' ],
+35 silly audit   '@babel/plugin-transform-react-jsx-source': [ '7.29.7' ],
+35 silly audit   '@babel/template': [ '7.29.7' ],
+35 silly audit   '@babel/traverse': [ '7.29.7' ],
+35 silly audit   '@babel/types': [ '7.29.7' ],
+35 silly audit   '@esbuild/aix-ppc64': [ '0.21.5' ],
+35 silly audit   '@esbuild/android-arm': [ '0.21.5' ],
+35 silly audit   '@esbuild/android-arm64': [ '0.21.5' ],
+35 silly audit   '@esbuild/android-x64': [ '0.21.5' ],
+35 silly audit   '@esbuild/darwin-arm64': [ '0.21.5' ],
+35 silly audit   '@esbuild/darwin-x64': [ '0.21.5' ],
+35 silly audit   '@esbuild/freebsd-arm64': [ '0.21.5' ],
+35 silly audit   '@esbuild/freebsd-x64': [ '0.21.5' ],
+35 silly audit   '@esbuild/linux-arm': [ '0.21.5' ],
+35 silly audit   '@esbuild/linux-arm64': [ '0.21.5' ],
+35 silly audit   '@esbuild/linux-ia32': [ '0.21.5' ],
+35 silly audit   '@esbuild/linux-loong64': [ '0.21.5' ],
+35 silly audit   '@esbuild/linux-mips64el': [ '0.21.5' ],
+35 silly audit   '@esbuild/linux-ppc64': [ '0.21.5' ],
+35 silly audit   '@esbuild/linux-riscv64': [ '0.21.5' ],
+35 silly audit   '@esbuild/linux-s390x': [ '0.21.5' ],
+35 silly audit   '@esbuild/linux-x64': [ '0.21.5' ],
+35 silly audit   '@esbuild/netbsd-x64': [ '0.21.5' ],
+35 silly audit   '@esbuild/openbsd-x64': [ '0.21.5' ],
+35 silly audit   '@esbuild/sunos-x64': [ '0.21.5' ],
+35 silly audit   '@esbuild/win32-arm64': [ '0.21.5' ],
+35 silly audit   '@esbuild/win32-ia32': [ '0.21.5' ],
+35 silly audit   '@esbuild/win32-x64': [ '0.21.5' ],
+35 silly audit   '@jridgewell/gen-mapping': [ '0.3.13' ],
+35 silly audit   '@jridgewell/remapping': [ '2.3.5' ],
+35 silly audit   '@jridgewell/resolve-uri': [ '3.1.2' ],
+35 silly audit   '@jridgewell/sourcemap-codec': [ '1.5.5' ],
+35 silly audit   '@jridgewell/trace-mapping': [ '0.3.31' ],
+35 silly audit   '@rolldown/pluginutils': [ '1.0.0-beta.27' ],
+35 silly audit   '@rollup/rollup-android-arm-eabi': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-android-arm64': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-darwin-arm64': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-darwin-x64': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-freebsd-arm64': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-freebsd-x64': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-arm-gnueabihf': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-arm-musleabihf': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-arm64-gnu': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-arm64-musl': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-loong64-gnu': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-loong64-musl': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-ppc64-gnu': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-ppc64-musl': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-riscv64-gnu': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-riscv64-musl': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-s390x-gnu': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-x64-gnu': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-linux-x64-musl': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-openbsd-x64': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-openharmony-arm64': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-win32-arm64-msvc': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-win32-ia32-msvc': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-win32-x64-gnu': [ '4.61.1' ],
+35 silly audit   '@rollup/rollup-win32-x64-msvc': [ '4.61.1' ],
+35 silly audit   '@types/babel__core': [ '7.20.5' ],
+35 silly audit   '@types/babel__generator': [ '7.27.0' ],
+35 silly audit   '@types/babel__template': [ '7.4.4' ],
+35 silly audit   '@types/babel__traverse': [ '7.28.0' ],
+35 silly audit   '@types/estree': [ '1.0.9' ],
+35 silly audit   '@vitejs/plugin-react': [ '4.7.0' ],
+35 silly audit   'baseline-browser-mapping': [ '2.10.34' ],
+35 silly audit   browserslist: [ '4.28.2' ],
+35 silly audit   'caniuse-lite': [ '1.0.30001797' ],
+35 silly audit   'convert-source-map': [ '2.0.0' ],
+35 silly audit   debug: [ '4.4.3' ],
+35 silly audit   'electron-to-chromium': [ '1.5.369' ],
+35 silly audit   esbuild: [ '0.21.5' ],
+35 silly audit   escalade: [ '3.2.0' ],
+35 silly audit   fsevents: [ '2.3.3' ],
+35 silly audit   gensync: [ '1.0.0-beta.2' ],
+35 silly audit   'js-tokens': [ '4.0.0' ],
+35 silly audit   jsesc: [ '3.1.0' ],
+35 silly audit   json5: [ '2.2.3' ],
+35 silly audit   'loose-envify': [ '1.4.0' ],
+35 silly audit   'lru-cache': [ '5.1.1' ],
+35 silly audit   ms: [ '2.1.3' ],
+35 silly audit   nanoid: [ '3.3.12' ],
+35 silly audit   'node-releases': [ '2.0.47' ],
+35 silly audit   picocolors: [ '1.1.1' ],
+35 silly audit   postcss: [ '8.5.15' ],
+35 silly audit   react: [ '18.3.1' ],
+35 silly audit   'react-dom': [ '18.3.1' ],
+35 silly audit   'react-refresh': [ '0.17.0' ],
+35 silly audit   rollup: [ '4.61.1' ],
+35 silly audit   scheduler: [ '0.23.2' ],
+35 silly audit   semver: [ '6.3.1' ],
+35 silly audit   'source-map-js': [ '1.2.1' ],
+35 silly audit   typescript: [ '5.9.3' ],
+35 silly audit   'update-browserslist-db': [ '1.2.3' ],
+35 silly audit   vite: [ '5.4.21' ],
+35 silly audit   yallist: [ '3.1.1' ],
+35 silly audit   '@types/react': [ '18.3.31' ],
+35 silly audit   '@types/react-dom': [ '18.3.7' ],
+35 silly audit   '@types/prop-types': [ '15.7.15' ],
+35 silly audit   csstype: [ '3.2.3' ]
+35 silly audit }
+36 http cache csstype@https://registry.npmmirror.com/csstype/-/csstype-3.2.3.tgz 0ms (cache hit)
+37 silly tarball no local data for csstype@https://registry.npmmirror.com/csstype/-/csstype-3.2.3.tgz. Extracting by manifest.
+38 http cache @types/prop-types@https://registry.npmmirror.com/@types/prop-types/-/prop-types-15.7.15.tgz 0ms (cache hit)
+39 http cache @types/react-dom@https://registry.npmmirror.com/@types/react-dom/-/react-dom-18.3.7.tgz 0ms (cache hit)
+40 http cache @types/react@https://registry.npmmirror.com/@types/react/-/react-18.3.31.tgz 1ms (cache hit)
+41 silly tarball no local data for @types/prop-types@https://registry.npmmirror.com/@types/prop-types/-/prop-types-15.7.15.tgz. Extracting by manifest.
+42 silly tarball no local data for @types/react-dom@https://registry.npmmirror.com/@types/react-dom/-/react-dom-18.3.7.tgz. Extracting by manifest.
+43 silly tarball no local data for @types/react@https://registry.npmmirror.com/@types/react/-/react-18.3.31.tgz. Extracting by manifest.
+44 http fetch POST 404 https://registry.npmmirror.com/-/npm/v1/security/advisories/bulk 74ms (cache skip)
+45 verbose audit error HttpErrorGeneral: 404 Not Found - POST https://registry.npmmirror.com/-/npm/v1/security/advisories/bulk - [NOT_IMPLEMENTED] /-/npm/v1/security/* not implemented yet
+45 verbose audit error     at D:\Tools\nodejs\node_modules\npm\node_modules\npm-registry-fetch\lib\check-response.js:103:15
+45 verbose audit error     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+45 verbose audit error     at async #getReport (D:\Tools\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\audit-report.js:275:19)
+45 verbose audit error     at async AuditReport.run (D:\Tools\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\audit-report.js:100:19) {
+45 verbose audit error   headers: [Object: null prototype] {
+45 verbose audit error     server: [ 'Tengine' ],
+45 verbose audit error     date: [ 'Tue, 09 Jun 2026 07:28:30 GMT' ],
+45 verbose audit error     'content-type': [ 'application/json' ],
+45 verbose audit error     'transfer-encoding': [ 'chunked' ],
+45 verbose audit error     connection: [ 'keep-alive' ],
+45 verbose audit error     'strict-transport-security': [ 'max-age=5184000' ],
+45 verbose audit error     via: [ 'kunlun12.cn5220[,404666]' ],
+45 verbose audit error     'timing-allow-origin': [ '*' ],
+45 verbose audit error     eagleid: [ '77bcaca017809901109675272e' ],
+45 verbose audit error     'x-fetch-attempts': [ '1' ],
+45 verbose audit error     'x-local-cache-status': [ 'skip' ]
+45 verbose audit error   },
+45 verbose audit error   statusCode: 404,
+45 verbose audit error   code: 'E404',
+45 verbose audit error   method: 'POST',
+45 verbose audit error   uri: 'https://registry.npmmirror.com/-/npm/v1/security/advisories/bulk',
+45 verbose audit error   body: {
+45 verbose audit error     error: '[NOT_IMPLEMENTED] /-/npm/v1/security/* not implemented yet'
+45 verbose audit error   },
+45 verbose audit error   pkgid: undefined
+45 verbose audit error }
+46 silly audit error [object Object]
+47 silly audit report null
+48 http fetch GET 200 https://cdn.npmmirror.com/packages/%40types/react-dom/18.3.7/react-dom-18.3.7.tgz 182ms (cache miss)
+49 http fetch GET 200 https://cdn.npmmirror.com/packages/%40types/prop-types/15.7.15/prop-types-15.7.15.tgz 190ms (cache miss)
+50 http fetch GET 200 https://cdn.npmmirror.com/packages/csstype/3.2.3/csstype-3.2.3.tgz 235ms (cache miss)
+51 http fetch GET 200 https://cdn.npmmirror.com/packages/%40types/react/18.3.31/react-18.3.31.tgz 256ms (cache miss)
+52 silly ADD node_modules/csstype
+53 silly ADD node_modules/@types/prop-types
+54 silly ADD node_modules/@types/react-dom
+55 silly ADD node_modules/@types/react
+56 verbose cwd C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\2ef040366b1faa6
+57 verbose os Windows_NT 10.0.26200
+58 verbose node v24.15.0
+59 verbose npm  v11.12.1
+60 verbose exit 0
+61 info ok

@@ -1,0 +1,2 @@
+
+0d1b5ff5af7181041810cd6dec888f41b6e3fcfd	{"key":"make-fetch-happen:request-cache:https://registry.npm.taobao.org/@esbuild%2flinux-arm","integrity":null,"time":1780990039351,"size":"262","metadata":{"time":1780990039351,"url":"https://registry.npm.taobao.org/@esbuild%2flinux-arm","reqHeaders":{"accept":"application/json"},"resHeaders":{"content-type":"text/html","date":"Tue, 09 Jun 2026 07:27:18 GMT","location":"https://registry.npmmirror.com/@esbuild%2flinux-arm"},"options":{"compress":true},"status":301}}

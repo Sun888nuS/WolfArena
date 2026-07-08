@@ -1,0 +1,2 @@
+
+3e4a57fd4d0968322e0cc0eb529a90da810e0d06	{"key":"make-fetch-happen:request-cache:https://registry.npm.taobao.org/sugarss","integrity":null,"time":1780990036009,"size":"262","metadata":{"time":1780990036009,"url":"https://registry.npm.taobao.org/sugarss","reqHeaders":{"accept":"application/json"},"resHeaders":{"content-type":"text/html","date":"Tue, 09 Jun 2026 07:27:14 GMT","location":"https://registry.npmmirror.com/sugarss"},"options":{"compress":true},"status":301}}
