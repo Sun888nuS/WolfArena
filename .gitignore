@@ -4,9 +4,10 @@
 docs/
 data/
 AGENTS.md
-VIBE_CODING_RULES.md
 PROJECT_PLAN.md
+VIBE_CODING_RULES.md
 
+# 环境变量
 backend/.venv/
 backend/.uv-cache/
 backend/wolfarena_backend.egg-info/
@@ -19,6 +20,3 @@ frontend/tsconfig.tsbuildinfo
 .env
 .env.example
 AccessKey.csv
-AGENTS.md
-PROJECT_PLAN.md
-VIBE_CODING_RULES.md
