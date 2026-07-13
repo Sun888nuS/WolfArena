@@ -49,6 +49,18 @@ export async function advanceGame(gameId: string): Promise<GameSnapshot> {
   return (await response.json()) as GameSnapshot;
 }
 
+/** 强制结束当前游戏，并保留已有事件用于复盘。 */
+export async function finishGame(gameId: string): Promise<GameSnapshot> {
+  const response = await fetch(`${API_BASE_URL}/api/games/${gameId}/finish`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    throw new Error(error?.detail ?? `结束游戏失败：${response.status}`);
+  }
+  return (await response.json()) as GameSnapshot;
+}
+
 /** 提交真人玩家行动，并返回恢复后的游戏快照。 */
 export async function submitAction(
   gameId: string,

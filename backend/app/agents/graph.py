@@ -29,13 +29,14 @@ from app.agents.schemas import AgentDecision
 from app.agents.text_agent import TextAgent
 from app.agents.validators import (
     validate_agent_decision,
+    validate_hunter_reaction_decision,
     validate_sheriff_handoff_decision,
     validate_sheriff_order_decision,
 )
 from app.core.events import append_event
 from app.core.engine import WerewolfEngine
 from app.core.exceptions import InvalidActionError
-from app.core.models import EventType, EventVisibility, GameState, Phase, PlayerState, Role
+from app.core.models import DeathReason, EventType, EventVisibility, GameState, Phase, PlayerState, Role
 from app.core.player_labels import player_label_by_id, player_labels_by_id
 from app.core.rules import (
     alive_players,
@@ -192,6 +193,31 @@ class WerewolfGraphController:
         """读取某局游戏最新图状态。"""
         snapshot = await self.graph.aget_state(self.config_for(game_id))
         return dict(snapshot.values)
+
+    async def force_finish(self, game_id: str, *, reason: str = "user_ended") -> GameGraphState:
+        """强制结束某局游戏，并把可复盘状态写回图检查点。"""
+        graph_state = await self.load(game_id)
+        engine = _engine_from_state(graph_state)
+        before = _trace_summary(engine.state)
+        engine.force_finish(reason=reason)
+        updated = _with_trace(
+            graph_state,
+            engine,
+            "game_forced_finish",
+            before,
+            next_node="__end__",
+            pending_wolf_proposals={},
+            pending_seer_decision={},
+            pending_witch_decision={},
+            pending_sheriff_candidates=[],
+            reaction_queue=[],
+        )
+        await self.graph.aupdate_state(
+            self.config_for(game_id),
+            updated,
+            as_node="game_over",
+        )
+        return updated
 
     def _build_graph(self) -> StateGraph:
         """构建多节点狼人杀流程图。"""
@@ -809,7 +835,7 @@ class WerewolfGraphController:
         """处理夜晚死亡后的猎人开枪、白痴翻牌和警徽移交。"""
         engine = _engine_from_state(state)
         before = _trace_summary(engine.state)
-        hunter_target = _reaction_hunter_target(engine, self._pending_sink)
+        hunter_target = await self._reaction_hunter_target(engine, state)
         idiot_reveal = _reaction_idiot_reveal(engine, self._pending_sink)
         sheriff_handoff = await self._reaction_sheriff_handoff(engine, state)
         engine.resolve_death_reactions(
@@ -1730,7 +1756,7 @@ class WerewolfGraphController:
         """处理白天放逐后的猎人、白痴和警徽移交。"""
         engine = _engine_from_state(state)
         before = _trace_summary(engine.state)
-        hunter_target = _reaction_hunter_target(engine, self._pending_sink)
+        hunter_target = await self._reaction_hunter_target(engine, state)
         idiot_reveal = _reaction_idiot_reveal(engine, self._pending_sink)
         sheriff_handoff = await self._reaction_sheriff_handoff(engine, state)
         engine.resolve_death_reactions(
@@ -1823,6 +1849,48 @@ class WerewolfGraphController:
             event_cursor=cursor,
         )
 
+    async def _reaction_hunter_target(
+        self,
+        engine: WerewolfEngine,
+        state: GameGraphState,
+    ) -> str | None:
+        """Return the hunter shot target for a death reaction, or None to skip."""
+        hunter = _triggered_role_player(engine.state, Role.HUNTER)
+        if hunter is None:
+            return None
+        if hunter.dead_reason not in {DeathReason.WEREWOLF_KILL, DeathReason.EXILE}:
+            return None
+        targets = legal_hunter_shot_targets(engine.state, hunter.player_id)
+        if not targets:
+            return None
+        if hunter.player_id == HUMAN_PLAYER_ID:
+            request = PendingActionResponse(
+                action_type="hunter_shot",
+                player_id=HUMAN_PLAYER_ID,
+                prompt="你触发猎人技能，可以选择开枪带走一名玩家，也可以不开枪。",
+                legal_targets=targets,
+                can_skip=True,
+            )
+            payload = _interrupt_for_human(engine, request, self._pending_sink)
+            submit = SubmitActionRequest.model_validate(payload)
+            return submit.target_id
+
+        target_options = ", ".join(player_label_by_id(engine.state, target_id) for target_id in targets)
+        try:
+            decision = await self._agent_for(engine, hunter.player_id).decide_hunter_reaction(
+                engine.state,
+                "You are the hunter who just died. Choose whether to shoot one living player. "
+                f"Legal target options: {target_options}. "
+                "Return hunter_shot with target_id to shoot, or abstain / target_id=null to skip.",
+                public_memory=dict(state.get("public_memory") or {}),
+                private_memories=dict(state.get("private_memories") or {}),
+                wolf_shared_memory=dict(state.get("wolf_shared_memory") or {}),
+            )
+            decision = validate_hunter_reaction_decision(decision, targets)
+        except Exception:
+            return None
+        return decision.target_id
+
     async def _reaction_sheriff_handoff(
         self,
         engine: WerewolfEngine,
@@ -1901,6 +1969,10 @@ class GraphRuntime:
     async def load(self, game_id: str) -> GameGraphState:
         """读取某局游戏最新图状态。"""
         return await self._controller.load(game_id)
+
+    async def force_finish(self, game_id: str, *, reason: str = "user_ended") -> GameGraphState:
+        """强制结束某局游戏。"""
+        return await self._controller.force_finish(game_id, reason=reason)
 
     async def close(self) -> None:
         """关闭运行时资源；当前内存实现无需额外清理。"""
@@ -2146,32 +2218,12 @@ def _wrap_seat(seat: int, seat_count: int) -> int:
     return ((seat - 1) % seat_count) + 1
 
 
-def _reaction_hunter_target(engine: WerewolfEngine, pending_sink: PendingSink) -> str | None:
-    """返回死亡反应中猎人开枪目标。"""
-    hunter = _triggered_role_player(engine.state, Role.HUNTER)
-    if hunter is None:
-        return None
-    targets = legal_hunter_shot_targets(engine.state, hunter.player_id)
-    if not targets:
-        return None
-    if hunter.player_id == HUMAN_PLAYER_ID:
-        request = PendingActionResponse(
-            action_type="hunter_shot",
-            player_id=HUMAN_PLAYER_ID,
-            prompt="你触发猎人技能，可以选择开枪带走一名玩家，也可以不开枪。",
-            legal_targets=targets,
-            can_skip=True,
-        )
-        payload = _interrupt_for_human(engine, request, pending_sink)
-        submit = SubmitActionRequest.model_validate(payload)
-        return submit.target_id
-    return None
-
-
 def _reaction_idiot_reveal(engine: WerewolfEngine, pending_sink: PendingSink) -> bool:
     """返回死亡反应中白痴是否翻牌。"""
     idiot = _triggered_role_player(engine.state, Role.IDIOT)
     if idiot is None:
+        return True
+    if idiot.dead_reason is not DeathReason.EXILE:
         return True
     if idiot.player_id == HUMAN_PLAYER_ID:
         request = PendingActionResponse(

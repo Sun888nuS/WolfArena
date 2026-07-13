@@ -99,6 +99,15 @@ class GameSession:
         await self.publish(snapshot)
         return snapshot
 
+    async def finish(self) -> GameSnapshotResponse:
+        """强制结束当前局，并保留已有事件用于复盘。"""
+        async with self._lock:
+            self._pending_actions.pop(self.game_id, None)
+            await self._runtime.force_finish(self.game_id)
+            snapshot = await self.snapshot()
+        await self.publish(snapshot)
+        return snapshot
+
     async def snapshot(self) -> GameSnapshotResponse:
         """读取图状态并构建真人玩家视角快照。"""
         graph_state = await self._runtime.load(self.game_id)

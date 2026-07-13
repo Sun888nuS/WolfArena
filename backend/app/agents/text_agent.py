@@ -122,6 +122,25 @@ class TextAgent:
             error_context="sheriff handoff",
         )
 
+    async def decide_hunter_reaction(
+        self,
+        state: GameState,
+        task: str,
+        *,
+        public_memory: dict[str, object] | None = None,
+        private_memories: dict[str, dict[str, object]] | None = None,
+        wolf_shared_memory: dict[str, object] | None = None,
+    ) -> AgentDecision:
+        """Let a dead hunter choose whether to shoot."""
+        return await self._raw_decide(
+            state,
+            task,
+            public_memory=public_memory,
+            private_memories=private_memories,
+            wolf_shared_memory=wolf_shared_memory,
+            error_context="hunter reaction",
+        )
+
     async def _raw_decide(
         self,
         state: GameState,

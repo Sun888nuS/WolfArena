@@ -215,7 +215,12 @@ class WerewolfEngine:
             visibility=EventVisibility.PRIVATE,
             actor_id=actor_id,
             recipients=(actor_id,),
-            payload={"save": save, "poison_target_id": poison_target_id},
+            payload={
+                "save": save,
+                "attacked_player_id": self.state.night_actions.werewolf_target_id,
+                "saved_player_id": self.state.night_actions.werewolf_target_id if save else None,
+                "poison_target_id": poison_target_id,
+            },
         )
 
     def confirm_hunter_status(self, actor_id: str) -> bool:
@@ -655,6 +660,19 @@ class WerewolfEngine:
             visibility=EventVisibility.PUBLIC,
             payload={"round": self.state.round_no},
         )
+
+    def force_finish(self, *, reason: str = "user_ended") -> None:
+        """强制结束当前游戏，并保留已有事件用于复盘。"""
+        if self.state.phase is Phase.GAME_OVER:
+            return
+        append_event(
+            self.state,
+            EventType.GAME_FORCED_FINISH,
+            visibility=EventVisibility.PUBLIC,
+            payload={"reason": reason, "winner": None},
+        )
+        self.state.winner = None
+        self.state.phase = Phase.GAME_OVER
 
     def living_role(self, role: Role) -> str | None:
         """返回指定角色的存活玩家 id。"""

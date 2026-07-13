@@ -187,7 +187,7 @@ def legal_witch_poison_targets(
     return [
         player.player_id
         for player in alive_players(state)
-        if player.player_id not in {witch_id, killed_player_id}
+        if player.player_id != witch_id
     ]
 
 

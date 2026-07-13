@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   advanceGame,
+  finishGame,
   gameWebSocketUrl,
   getGame,
   getLlmConfig,
@@ -19,12 +20,13 @@ import type {
   PublicPlayer,
 } from "../../types/game";
 import type { LlmConfigStatus } from "../../types/health";
+import { GameReviewDialog } from "../review/GameReviewDialog";
 
 /** 女巫操作区的前端临时选择状态。 */
 type WitchChoice = "none" | "save" | "poison";
 type SpeechDirection = "clockwise" | "counterclockwise" | "";
 type SheriffRunChoice = "run" | "stay";
-type ReviewTab = "timeline" | "speeches" | "votes";
+type IdiotRevealChoice = "reveal" | "hide";
 type LockedHumanIdentity = { role: string; alignment: string | null };
 type StreamingReply = AgentReplyStreamMessage & { status: "streaming" | "done" };
 type LlmSettingsForm = { base_url: string; model: string; api_key: string };
@@ -49,7 +51,9 @@ export function GamePage({
   const [witchChoice, setWitchChoice] = useState<WitchChoice>("none");
   const [speechDirection, setSpeechDirection] = useState<SpeechDirection>("");
   const [sheriffRunChoice, setSheriffRunChoice] = useState<SheriffRunChoice>("run");
+  const [idiotRevealChoice, setIdiotRevealChoice] = useState<IdiotRevealChoice>("reveal");
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [llmSettingsOpen, setLlmSettingsOpen] = useState(false);
   const [llmConfig, setLlmConfig] = useState<LlmConfigStatus | null>(null);
   const [llmForm, setLlmForm] = useState<LlmSettingsForm>({
@@ -239,6 +243,7 @@ export function GamePage({
       const data = await startGame(playerName.trim() || "Sunny");
       applySnapshot(data, { makeActive: true });
       window.localStorage.setItem(lastGameIdKey, data.game_id);
+      setReviewOpen(false);
       resetActionForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "启动失败");
@@ -247,17 +252,39 @@ export function GamePage({
     }
   }
 
-  /** 结束当前前端对局视图，回到未开局状态。 */
-  function handleEndGame() {
-    setSnapshot(null);
+  /** 游戏结束后打开复盘；进行中只给出明确提示。 */
+  function handleOpenReview() {
     setError("");
-    setAutoAdvancing(false);
-    setSocketConnected(false);
+    if (!snapshot) {
+      setError("暂无可复盘的游戏");
+      return;
+    }
+    if (snapshot.phase !== "game_over") {
+      setError("游戏进行中，无法查看复盘");
+      return;
+    }
+    setReviewOpen(true);
+  }
+
+  /** 强制结束当前对局，保留已有事件供之后复盘。 */
+  async function handleEndGame() {
+    if (!snapshot || snapshot.phase === "game_over") return;
+    const gameId = snapshot.game_id;
+    setLoading(true);
+    setError("");
+    setReviewOpen(false);
     setStreamingReply(null);
-    advanceInFlightRef.current = false;
-    activeGameIdRef.current = null;
-    window.localStorage.removeItem(lastGameIdKey);
-    resetActionForm();
+    try {
+      const data = await finishGame(gameId);
+      applySnapshot(data, { expectedGameId: gameId });
+      resetActionForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "结束游戏失败");
+    } finally {
+      advanceInFlightRef.current = false;
+      setAutoAdvancing(false);
+      setLoading(false);
+    }
   }
 
   /** 打开模型设置弹窗，并读取后端当前运行时配置。 */
@@ -346,6 +373,7 @@ export function GamePage({
         witchChoice,
         speechDirection,
         sheriffRunChoice,
+        idiotRevealChoice,
       );
       const data = await submitAction(gameId, payload);
       applySnapshot(data, { expectedGameId: gameId });
@@ -370,6 +398,7 @@ export function GamePage({
     setWitchChoice("none");
     setSpeechDirection("");
     setSheriffRunChoice("run");
+    setIdiotRevealChoice("reveal");
   }
 
   return (
@@ -399,7 +428,15 @@ export function GamePage({
           <button className="secondary-button" onClick={() => setRulesOpen(true)} type="button">
             查看规则
           </button>
-          <button className="danger-button" onClick={handleEndGame} disabled={!snapshot || loading} type="button">
+          <button className="secondary-button" onClick={handleOpenReview} type="button">
+            游戏复盘
+          </button>
+          <button
+            className="danger-button"
+            onClick={() => void handleEndGame()}
+            disabled={!snapshot || snapshot.phase === "game_over" || loading}
+            type="button"
+          >
             结束游戏
           </button>
         </div>
@@ -439,6 +476,8 @@ export function GamePage({
               setSpeechDirection={setSpeechDirection}
               sheriffRunChoice={sheriffRunChoice}
               setSheriffRunChoice={setSheriffRunChoice}
+              idiotRevealChoice={idiotRevealChoice}
+              setIdiotRevealChoice={setIdiotRevealChoice}
               onSubmit={handleSubmit}
               disabled={loading}
               phase={snapshot?.phase}
@@ -447,7 +486,6 @@ export function GamePage({
         </div>
 
         <aside className="side-panel">
-          <ReviewPanel snapshot={snapshot} playersById={playersById} />
           <KnownInfo snapshot={snapshot} playersById={playersById} />
           <RuleCard />
           <EventFeed
@@ -459,6 +497,13 @@ export function GamePage({
       </section>
 
       {rulesOpen ? <RulesDialog onClose={() => setRulesOpen(false)} /> : null}
+      {reviewOpen && snapshot?.phase === "game_over" ? (
+        <GameReviewDialog
+          snapshot={snapshot}
+          playersById={playersById}
+          onClose={() => setReviewOpen(false)}
+        />
+      ) : null}
       {llmSettingsOpen ? (
         <LlmSettingsDialog
           config={llmConfig}
@@ -688,6 +733,8 @@ function ActionPanel(props: {
   setSpeechDirection: (value: SpeechDirection) => void;
   sheriffRunChoice: SheriffRunChoice;
   setSheriffRunChoice: (value: SheriffRunChoice) => void;
+  idiotRevealChoice: IdiotRevealChoice;
+  setIdiotRevealChoice: (value: IdiotRevealChoice) => void;
   onSubmit: () => void;
   disabled: boolean;
   phase?: string;
@@ -749,10 +796,25 @@ function ActionPanel(props: {
 
       {pending.action_type === "idiot_reveal" ? (
         <div className="choice-grid">
-          <label className="choice-card selected">
-            <input type="radio" checked readOnly />
-            <strong>翻牌</strong>
-            <span>继续发言，失去投票权</span>
+          <label className={`choice-card ${props.idiotRevealChoice === "reveal" ? "selected" : ""}`}>
+            <input
+              type="radio"
+              name="idiot-reveal"
+              checked={props.idiotRevealChoice === "reveal"}
+              onChange={() => props.setIdiotRevealChoice("reveal")}
+            />
+            <strong>{"\u7ffb\u724c"}</strong>
+            <span>{"\u7ee7\u7eed\u53d1\u8a00\uff0c\u4f46\u5931\u53bb\u6295\u7968\u6743"}</span>
+          </label>
+          <label className={`choice-card ${props.idiotRevealChoice === "hide" ? "selected" : ""}`}>
+            <input
+              type="radio"
+              name="idiot-reveal"
+              checked={props.idiotRevealChoice === "hide"}
+              onChange={() => props.setIdiotRevealChoice("hide")}
+            />
+            <strong>{"\u4e0d\u7ffb\u724c"}</strong>
+            <span>{"\u6b63\u5e38\u51fa\u5c40\uff0c\u4e0d\u516c\u5f00\u8eab\u4efd"}</span>
           </label>
         </div>
       ) : null}
@@ -828,6 +890,7 @@ function ActionPanel(props: {
             props.witchChoice,
             props.speechDirection,
             props.sheriffRunChoice,
+            props.idiotRevealChoice,
           )}
         </button>
       </div>
@@ -996,90 +1059,6 @@ function RuleCard() {
         <li>狼人全出局好人胜；村民或神民被屠边狼人胜。</li>
       </ul>
     </div>
-  );
-}
-
-/** 对局结束后的全量复盘，展示行动、发言和投票。 */
-function ReviewPanel({
-  snapshot,
-  playersById,
-}: {
-  snapshot: GameSnapshot | null;
-  playersById: Map<string, PublicPlayer>;
-}) {
-  const [tab, setTab] = useState<ReviewTab>("timeline");
-  if (!snapshot || snapshot.phase !== "game_over") return null;
-
-  const reviewEvents = snapshot.review_events?.length ? snapshot.review_events : snapshot.events;
-  const timelineItems = reviewEvents
-    .map((event, index) => ({ event, index, description: describeReviewEvent(event, playersById) }))
-    .filter(({ description }) => description !== "");
-  const speechItems = timelineItems.filter(({ event }) => event.type === "day.speech_recorded");
-  const voteItems = timelineItems.filter(({ event }) => isReviewVoteEvent(event.type));
-  const activeItems = tab === "speeches" ? speechItems : tab === "votes" ? voteItems : timelineItems;
-
-  return (
-    <section className="review-panel" aria-label="本局复盘">
-      <div className="panel-title">
-        <span>本局复盘</span>
-        <strong>{winnerLabel(snapshot.winner)}获胜</strong>
-      </div>
-
-      <div className="review-tabs" role="tablist" aria-label="复盘视图">
-        <button
-          className={tab === "timeline" ? "active" : ""}
-          onClick={() => setTab("timeline")}
-          type="button"
-        >
-          时间线
-        </button>
-        <button
-          className={tab === "speeches" ? "active" : ""}
-          onClick={() => setTab("speeches")}
-          type="button"
-        >
-          发言
-        </button>
-        <button
-          className={tab === "votes" ? "active" : ""}
-          onClick={() => setTab("votes")}
-          type="button"
-        >
-          投票
-        </button>
-      </div>
-
-      <div className="review-list">
-        {activeItems.length === 0 ? <div className="review-empty">暂无复盘记录</div> : null}
-        {activeItems.map(({ event, index, description }) => (
-          <div className="review-item" key={`${event.type}-${index}`}>
-            <span>
-              第 {event.round_no} 轮 · {phaseLabel(event.phase)} · {eventTypeLabel(event.type)}
-            </span>
-            <strong>{event.actor_id ? playerName(event.actor_id, playersById) : "系统"}</strong>
-            <p>{description}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="review-roster">
-        <span>全员身份</span>
-        {snapshot.players
-          .slice()
-          .sort((left, right) => left.seat - right.seat)
-          .map((player) => (
-            <div className="review-player-row" key={player.player_id}>
-              <strong>
-                {player.seat} 号 {player.name}
-              </strong>
-              <span>
-                {roleLabel(player.role ?? "")} · {alignmentLabel(player.alignment ?? "")} ·{" "}
-                {player.alive ? "存活" : `出局${player.dead_reason ? `（${deathReasonLabel(player.dead_reason)}）` : ""}`}
-              </span>
-            </div>
-          ))}
-      </div>
-    </section>
   );
 }
 
@@ -1365,6 +1344,7 @@ function buildPayload(
   witchChoice: WitchChoice,
   speechDirection: SpeechDirection,
   sheriffRunChoice: SheriffRunChoice,
+  idiotRevealChoice: IdiotRevealChoice,
 ) {
   if (pending.action_type === "speak") {
     return { action_type: "speak", speech: speech.trim() || "我先听大家发言，继续观察。" };
@@ -1377,7 +1357,7 @@ function buildPayload(
     };
   }
   if (pending.action_type === "idiot_reveal") {
-    return { action_type: "idiot_reveal", reveal: true };
+    return { action_type: "idiot_reveal", reveal: idiotRevealChoice === "reveal" };
   }
   if (pending.action_type === "vote" && !selectedTarget) {
     return { action_type: "abstain" };
@@ -1410,6 +1390,7 @@ function submitLabel(
   witchChoice: WitchChoice,
   speechDirection: SpeechDirection,
   sheriffRunChoice: SheriffRunChoice,
+  idiotRevealChoice: IdiotRevealChoice,
 ): string {
   if (pending.action_type === "speak") return "结束发言";
   if (pending.action_type === "sheriff_run") return sheriffRunChoice === "run" ? "确认上警" : "不上警";
@@ -1430,7 +1411,7 @@ function submitLabel(
     if (speechDirection === "clockwise") return "右边开始发言";
     return "选择发言顺序";
   }
-  if (pending.action_type === "idiot_reveal") return "翻牌";
+  if (pending.action_type === "idiot_reveal") return idiotRevealChoice === "reveal" ? "\u7ffb\u724c" : "\u4e0d\u7ffb\u724c";
   if (pending.action_type === "witch_action") {
     if (witchChoice === "save") return "使用解药";
     if (witchChoice === "poison") return selectedPlayer ? `毒杀 ${selectedPlayer.seat} 号` : "选择毒药目标";
@@ -1564,174 +1545,6 @@ function describeEvent(event: GameEvent, playersById: Map<string, PublicPlayer>)
   return GENERIC_EVENT_DESCRIPTION;
 }
 
-function describeReviewEvent(event: GameEvent, playersById: Map<string, PublicPlayer>): string {
-  const payload = event.payload;
-  if (event.type === "role.assigned") {
-    return "";
-  }
-  if (event.type === "game.created") {
-    return "创建 12 人标准局。";
-  }
-  if (event.type === "night.started") {
-    return `第 ${payload.round ?? event.round_no} 轮夜晚开始。`;
-  }
-  if (event.type === "night.werewolf_kill_intent_recorded") {
-    return payload.target_id
-      ? `刀人意向：${playerName(String(payload.target_id), playersById)}`
-      : "狼人提交了刀人意向。";
-  }
-  if (event.type === "night.werewolf_consensus_required") {
-    return `狼队意向不一致：${formatIntentMap(payload.intents, playersById)}`;
-  }
-  if (event.type === "night.werewolf_kill_selected") {
-    return `狼人选择袭击 ${playerName(String(payload.target_id ?? ""), playersById)}`;
-  }
-  if (event.type === "night.seer_checked") {
-    return `预言家查验 ${playerName(String(payload.target_id ?? ""), playersById)}，结果为 ${alignmentLabel(String(payload.alignment ?? ""))}`;
-  }
-  if (event.type === "night.witch_acted") {
-    return describeWitchEvent(payload, playersById);
-  }
-  if (event.type === "night.hunter_status_confirmed") {
-    return Boolean(payload.can_shoot) ? "猎人确认可以开枪。" : "猎人确认本轮不能开枪。";
-  }
-  if (event.type === "night.idiot_confirmed") {
-    return "白痴确认身份。";
-  }
-  if (event.type === "night.resolved") {
-    const dead = payload.dead_player_ids;
-    const reasons = isRecord(payload.death_reasons) ? payload.death_reasons : {};
-    if (!Array.isArray(dead) || dead.length === 0) return "昨夜平安夜。";
-    return `昨夜死亡：${dead
-      .map((id) => {
-        const playerId = String(id);
-        const reason = typeof reasons[playerId] === "string" ? `（${deathReasonLabel(reasons[playerId])}）` : "";
-        return `${playerName(playerId, playersById)}${reason}`;
-      })
-      .join("、")}`;
-  }
-  if (event.type === "death.reaction_resolved") {
-    return payload.hunter_shot === false ? "猎人没有开枪。" : "死亡技能结算完成。";
-  }
-  if (event.type === "death.hunter_shot") {
-    return `猎人开枪带走 ${playerName(String(payload.target_id ?? ""), playersById)}`;
-  }
-  if (event.type === "death.idiot_revealed") {
-    return "白痴翻牌，继续发言但失去投票权。";
-  }
-  if (event.type === "sheriff.election_started") {
-    return "警长竞选开始。";
-  }
-  if (event.type === "sheriff.candidates_set") {
-    return `警上玩家：${formatPlayerList(payload.candidate_ids, playersById)}`;
-  }
-  if (event.type === "sheriff.vote_recorded") {
-    return payload.target_id
-      ? `警长票投给 ${playerName(String(payload.target_id), playersById)}${formatVoteReason(payload)}`
-      : `警长投票弃票${formatVoteReason(payload)}`;
-  }
-  if (event.type === "sheriff.vote_resolved") {
-    const tied = payload.tied_player_ids;
-    const result = payload.sheriff_id
-      ? `${playerName(String(payload.sheriff_id), playersById)} 当选警长`
-      : Array.isArray(tied) && tied.length > 0
-        ? `平票：${formatPlayerList(tied, playersById)}`
-        : "无人当选警长";
-    return `${result}。${formatTally(payload.tally, playersById)}`;
-  }
-  if (event.type === "sheriff.assigned") {
-    return `${playerName(String(payload.sheriff_id ?? ""), playersById)} 获得警徽。`;
-  }
-  if (event.type === "sheriff.badge_lost") {
-    return `警徽流失${payload.reason ? `（${sheriffBadgeLostReasonLabel(String(payload.reason))}）` : ""}。`;
-  }
-  if (event.type === "sheriff.handed_off") {
-    return `警徽移交给 ${playerName(String(payload.target_id ?? ""), playersById)}`;
-  }
-  if (event.type === "day.speech_recorded") {
-    return String(payload.speech ?? "");
-  }
-  if (event.type === "day.vote_recorded") {
-    return payload.target_id
-      ? `放逐票投给 ${playerName(String(payload.target_id), playersById)}${formatVoteReason(payload)}`
-      : `放逐投票弃票${formatVoteReason(payload)}`;
-  }
-  if (event.type === "day.vote_resolved") {
-    const tied = payload.tied_player_ids;
-    const result = payload.exiled_player_id
-      ? `${playerName(String(payload.exiled_player_id), playersById)} 被放逐`
-      : Array.isArray(tied) && tied.length > 0
-        ? `平票：${formatPlayerList(tied, playersById)}`
-        : "无人出局";
-    return `${result}。${formatTally(payload.tally, playersById)}`;
-  }
-  if (event.type === "day.pk_started") {
-    return `进入 PK：${formatPlayerList(payload.tied_player_ids, playersById)}`;
-  }
-  if (event.type === "day.no_exile") {
-    return "再次平票或无人得票，今日无人出局。";
-  }
-  if (event.type === "day.werewolf_self_exploded") {
-    return "狼人自爆出局，跳过白天进入黑夜。";
-  }
-  if (event.type === "game.win_checked") {
-    return payload.winner ? `胜者：${winnerLabel(String(payload.winner))}` : "";
-  }
-  if (event.type === "game.next_round_started") {
-    return `进入第 ${payload.round ?? event.round_no} 轮。`;
-  }
-  if (event.type === "game.forced_finish") {
-    return `系统结束对局，胜者：${winnerLabel(String(payload.winner ?? ""))}`;
-  }
-  const fallback = describeEvent(event, playersById);
-  return fallback === GENERIC_EVENT_DESCRIPTION ? "" : fallback;
-}
-
-function isReviewVoteEvent(type: string): boolean {
-  return [
-    "sheriff.vote_recorded",
-    "sheriff.vote_resolved",
-    "day.vote_recorded",
-    "day.vote_resolved",
-    "day.pk_started",
-    "day.no_exile",
-  ].includes(type);
-}
-
-function formatPlayerList(value: unknown, playersById: Map<string, PublicPlayer>): string {
-  if (!Array.isArray(value) || value.length === 0) return "无";
-  return value.map((id) => playerName(String(id), playersById)).join("、");
-}
-
-function formatIntentMap(value: unknown, playersById: Map<string, PublicPlayer>): string {
-  if (!isRecord(value) || Object.keys(value).length === 0) return "暂无明细";
-  return Object.entries(value)
-    .map(([actorId, targetId]) => `${playerName(actorId, playersById)}→${playerName(String(targetId), playersById)}`)
-    .join("、");
-}
-
-function formatTally(value: unknown, playersById: Map<string, PublicPlayer>): string {
-  if (!isRecord(value) || Object.keys(value).length === 0) return "票型：无人得票";
-  const rows = Object.entries(value)
-    .sort((left, right) => Number(right[1]) - Number(left[1]))
-    .map(([targetId, count]) => `${playerName(targetId, playersById)} ${formatVoteCount(Number(count))} 票`);
-  return `票型：${rows.join("、")}`;
-}
-
-function formatVoteCount(count: number): string {
-  return Number.isInteger(count) ? String(count) : count.toFixed(1).replace(/\.0$/, "");
-}
-
-function formatVoteReason(payload: Record<string, unknown>): string {
-  const reason = String(payload.public_reason ?? "").trim();
-  const score = payload.reasoning_score;
-  const parts = [
-    reason ? `理由：${reason}` : "",
-    typeof score === "number" ? `评分：${score}` : "",
-  ].filter(Boolean);
-  return parts.length ? `（${parts.join("；")}）` : "";
-}
-
 /** 将事件类型转换为简短中文标签。 */
 function eventTypeLabel(type: string): string {
   const labels: Record<string, string> = {
@@ -1829,13 +1642,6 @@ function deathReasonLabel(reason: string): string {
   if (reason === "witch_poison") return "女巫毒药";
   if (reason === "exile") return "白天放逐";
   if (reason === "hunter_shot") return "猎人开枪";
-  if (reason === "self_explode") return "狼人自爆";
-  return reason || "未知原因";
-}
-
-function sheriffBadgeLostReasonLabel(reason: string): string {
-  if (reason === "tie") return "竞选平票";
-  if (reason === "sheriff_dead") return "警长出局";
   if (reason === "self_explode") return "狼人自爆";
   return reason || "未知原因";
 }

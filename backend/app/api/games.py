@@ -65,6 +65,16 @@ async def advance_game(game_id: str) -> GameSnapshotResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+@router.post("/{game_id}/finish", response_model=GameSnapshotResponse)
+async def finish_game(game_id: str) -> GameSnapshotResponse:
+    """强制结束当前游戏，并保留已有事件用于复盘。"""
+    try:
+        session = await manager.get(game_id)
+        return await session.finish()
+    except GameCoreError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/{game_id}/role", response_model=StartGameResponse)
 async def get_human_role_context(game_id: str) -> StartGameResponse:
     """返回当前真人玩家的稳定 game_id 和 player_id。"""

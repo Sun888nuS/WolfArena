@@ -83,6 +83,46 @@ def validate_sheriff_handoff_decision(
     )
 
 
+def validate_hunter_reaction_decision(
+    decision: AgentDecision,
+    legal_targets: list[str],
+) -> AgentDecision:
+    """Validate a hunter death-reaction decision."""
+    if decision.action_type == "abstain":
+        return AgentDecision(
+            action_type="hunter_shot",
+            target_id=None,
+            public_reason=decision.public_reason,
+            thought_summary=decision.thought_summary,
+            memory_note=decision.memory_note,
+            suspicion_scores=_legal_scores(legal_targets, decision.suspicion_scores),
+            confidence=decision.confidence,
+        )
+    if decision.action_type != "hunter_shot":
+        raise ValueError("Hunter reaction must return hunter_shot or abstain.")
+    if decision.target_id is None:
+        return AgentDecision(
+            action_type="hunter_shot",
+            target_id=None,
+            public_reason=decision.public_reason,
+            thought_summary=decision.thought_summary,
+            memory_note=decision.memory_note,
+            suspicion_scores=_legal_scores(legal_targets, decision.suspicion_scores),
+            confidence=decision.confidence,
+        )
+    if decision.target_id not in legal_targets:
+        raise ValueError("Hunter reaction returned an illegal target.")
+    return AgentDecision(
+        action_type="hunter_shot",
+        target_id=decision.target_id,
+        public_reason=decision.public_reason,
+        thought_summary=decision.thought_summary,
+        memory_note=decision.memory_note,
+        suspicion_scores=_legal_scores(legal_targets, decision.suspicion_scores),
+        confidence=decision.confidence,
+    )
+
+
 def _validate_night_decision(
     state: GameState,
     player_id: str,

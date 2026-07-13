@@ -388,7 +388,6 @@ h1 {
 .arena-panel,
 .side-panel,
 .known-info,
-.review-panel,
 .rule-card,
 .event-item,
 .event-empty,
@@ -403,7 +402,6 @@ h1 {
 .is-night .arena-panel,
 .is-night .side-panel,
 .is-night .known-info,
-.is-night .review-panel,
 .is-night .rule-card,
 .is-night .event-item,
 .is-night .event-empty,
@@ -1000,7 +998,6 @@ h1 {
 }
 
 .known-info,
-.review-panel,
 .rule-card,
 .event-feed {
   display: grid;
@@ -1008,7 +1005,6 @@ h1 {
 }
 
 .known-info,
-.review-panel,
 .rule-card {
   padding: 14px;
 }
@@ -1079,131 +1075,6 @@ h1 {
 
 .is-night .private-list {
   border-color: rgb(255 255 255 / 10%);
-}
-
-.review-tabs {
-  background: #eef3f1;
-  border-radius: 8px;
-  display: grid;
-  gap: 4px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 4px;
-}
-
-.review-tabs button {
-  background: transparent;
-  border-radius: 7px;
-  color: #4b5563;
-  font-size: 12px;
-  font-weight: 900;
-  min-height: 32px;
-  padding: 7px 8px;
-}
-
-.review-tabs button.active {
-  background: #245c53;
-  color: #fff;
-}
-
-.is-night .review-tabs {
-  background: rgb(255 255 255 / 8%);
-}
-
-.is-night .review-tabs button {
-  color: #cbd5df;
-}
-
-.is-night .review-tabs button.active {
-  background: #d7b76d;
-  color: #211704;
-}
-
-.review-list {
-  display: grid;
-  gap: 8px;
-  max-height: 340px;
-  overflow: auto;
-  padding-right: 2px;
-}
-
-.review-empty {
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 800;
-  padding: 8px 0;
-}
-
-.review-item {
-  border-left: 3px solid #2f6f64;
-  display: grid;
-  gap: 4px;
-  padding: 4px 0 8px 10px;
-}
-
-.review-item span,
-.review-roster > span,
-.review-player-row span {
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.review-item strong {
-  color: #172033;
-  font-size: 13px;
-}
-
-.review-item p {
-  color: #344054;
-  font-size: 13px;
-  line-height: 1.5;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.is-night .review-empty,
-.is-night .review-item span,
-.is-night .review-roster > span,
-.is-night .review-player-row span {
-  color: #a8b4c0;
-}
-
-.is-night .review-item {
-  border-left-color: #d7b76d;
-}
-
-.is-night .review-item strong {
-  color: #f8fafc;
-}
-
-.is-night .review-item p {
-  color: #cbd5df;
-}
-
-.review-roster {
-  border-top: 1px solid #e4ece9;
-  display: grid;
-  gap: 7px;
-  padding-top: 10px;
-}
-
-.is-night .review-roster {
-  border-color: rgb(255 255 255 / 10%);
-}
-
-.review-player-row {
-  align-items: start;
-  display: grid;
-  gap: 3px;
-}
-
-.review-player-row strong {
-  color: #172033;
-  font-size: 13px;
-}
-
-.is-night .review-player-row strong {
-  color: #f8fafc;
 }
 
 .event-feed {
