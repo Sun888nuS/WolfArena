@@ -116,6 +116,7 @@ class GameSession:
         state = deserialize_game_state(dict(graph_state["game"]))
         pending_action = self._pending_actions.get(self.game_id)
         last_node = str(graph_state.get("last_node") or "")
+        next_node = str(graph_state.get("next_node") or "")
         speech_order = list(graph_state.get("speech_order") or [])
         speech_index = int(graph_state.get("speech_index") or 0)
         vote_order = list(graph_state.get("vote_order") or [])
@@ -126,7 +127,7 @@ class GameSession:
         elif last_node in {"sheriff_speech_turn", "sheriff_pk_speech"}:
             speech_order = list(graph_state.get("sheriff_speech_order") or [])
             speech_index = int(graph_state.get("sheriff_speech_index") or 0)
-        elif last_node in {"sheriff_vote_turn", "sheriff_pk_vote_turn"}:
+        elif last_node in {"sheriff_vote_start", "sheriff_vote_turn", "sheriff_pk_vote_start", "sheriff_pk_vote_turn"}:
             vote_order = list(graph_state.get("sheriff_vote_order") or [])
             vote_index = int(graph_state.get("sheriff_vote_index") or 0)
         return build_snapshot_response(
@@ -142,6 +143,8 @@ class GameSession:
             vote_order=vote_order,
             vote_index=vote_index,
             last_node=last_node,
+            next_node=next_node,
+            graph_state=dict(graph_state),
         )
 
     async def subscribe(self, websocket: WebSocket) -> None:

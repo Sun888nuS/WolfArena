@@ -1,26 +1,27 @@
 # backend/app/core
 
-确定性狼人杀规则核心目录，负责游戏真相状态和所有规则结算。
+确定性的狼人杀规则核心，是整局游戏真相状态的唯一来源。这里不依赖 FastAPI、React 或具体模型服务。
 
-## 这里负责什么
+## 文件分工
 
-- `models.py` 定义玩家、阶段、身份、事件、投票、夜晚行动缓存等领域模型。
-- `engine.py` 是修改 `GameState` 的主要入口，负责夜晚行动、投票、死亡、胜负等状态变更。
-- `rules.py` 提供合法目标、胜负检查、投票结算、阶段校验等纯规则函数。
-- `events.py` 统一追加领域事件。
-- `visibility.py` 根据玩家视角过滤可见事件和私有信息。
-- `serialization.py` 负责 `GameState` 和 LangGraph 状态之间的序列化。
+- `models.py` 定义阵营、身份、阶段、事件类型、玩家状态、夜晚行动缓存、投票记录和 `GameState`。
+- `rules.py` 提供纯规则函数：创建玩家板子、查找存活玩家、合法目标、阶段校验、投票结算和胜负判断。
+- `engine.py` 是修改 `GameState` 的主要入口，负责狼人刀人、预言家查验、女巫用药、发言、投票、警长、死亡技能和胜负结算等状态变更。
+- `events.py` 统一追加领域事件，保证事件字段和可见性一致。
+- `visibility.py` 根据真人或 AI 玩家视角生成可见玩家、可见事件、合法行动和私有信息。
+- `serialization.py` 在 dataclass 状态和 LangGraph 可持久化字典之间转换。
 - `exceptions.py` 定义规则层异常。
-- `player_labels.py` 提供稳定的玩家中文标签。
+- `player_labels.py` 生成稳定的座位号和玩家展示标签。
 
 ## 常见修改入口
 
-- 改角色配置、胜负条件、合法行动：优先看 `rules.py` 和 `models.py`。
-- 改行动如何影响状态：`engine.py`。
-- 改玩家能看到什么：`visibility.py`。
-- 改事件记录字段：`events.py` 和 `models.py`。
-- 改图状态持久化格式：`serialization.py`。
+- 改角色、阶段、状态字段：先改 `models.py`。
+- 改 12 人或 6 人板子、合法目标、胜负条件、投票结算：改 `rules.py`。
+- 改某个行动如何改变游戏真相：改 `engine.py`。
+- 改事件类型或 payload：同步 `models.py`、`events.py`、`sessions/snapshots.py` 和前端复盘展示。
+- 改某个身份能看到什么：改 `visibility.py`。
+- 改图状态保存格式：改 `serialization.py`，并确认 `agents/graph.py` 的读写字段。
 
-## 边界说明
+## 维护边界
 
-这个目录是规则真相源。前端、API、Agent 可以读取或调用规则入口，但不应复制一套规则判断，否则很容易出现“显示能点、后端不认”或“AI 认为合法、规则拒绝”的问题。
+前端、API 和 Agent 都可以调用这里的规则入口，但不应复制一套规则判断。所有生死、身份、胜负、投票和技能结果都应以 `core` 为准。

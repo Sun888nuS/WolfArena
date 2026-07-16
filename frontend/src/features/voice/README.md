@@ -1,17 +1,23 @@
 # frontend/src/features/voice
 
-语音交互功能预留目录。
+固定主持语音播放目录，负责按照后端快照里的 `host_cue` 播放白名单语音，并在语音结束后通知游戏页继续自动推进。
 
-## 这里负责什么
+## 文件分工
 
-当前目录没有实际源码。后续可用于真人语音输入、上帝语音播报、语音房间状态、静音/麦克风权限等能力。
+- `useHostVoice.ts` 根据 `GameSnapshot.host_cue` 播放主语音和补充语音，处理音量、启停、播放队列、浏览器自动播放限制和语音结束回调。
 
-## 后续适合放什么
+## 数据来源
 
-- 麦克风权限、录音状态、语音输入组件。
-- TTS 播报开关、音量和播报队列 UI。
-- 与后端 `backend/app/voice/` 对接的服务封装。
+- 音频地址由 `frontend/src/services/game.ts` 的 `hostVoiceUrl` 生成。
+- 可用语音 key 由后端 `backend/app/voice/host_voice.py` 白名单控制。
+- 具体哪个节点播放哪个语音，由后端 `backend/app/sessions/snapshots.py` 生成 `host_cue`。
 
-## 边界说明
+## 常见修改入口
 
-语音只是一种输入输出方式。最终真人行动仍应通过 `frontend/src/services/game.ts` 提交到后端，并走原有规则校验。
+- 调整播放顺序、等待时间或自动推进完成回调：改 `useHostVoice.ts`。
+- 新增固定主持语音：先改后端 `host_voice.py` 白名单和资源文件，再在 `sessions/snapshots.py` 使用新的 `voice_key`。
+- 调整语音开关、音量 UI 或状态展示：通常改 `features/game/GamePage.tsx`。
+
+## 维护边界
+
+语音只是输出方式。真人行动仍通过 `services/game.ts` 提交到后端，并由后端规则校验。

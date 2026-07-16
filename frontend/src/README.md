@@ -1,22 +1,24 @@
 # frontend/src
 
-前端源码根目录，按应用入口、业务功能、接口服务和类型定义分层。
+前端源码根目录，基于 React 和 TypeScript 组织应用入口、业务功能、后端服务客户端和共享类型。
 
-## 这里负责什么
+## 目录分工
 
-- `app/` 放 React 应用入口、根组件和全局样式。
-- `features/` 放面向用户的业务功能页面或功能域。
-- `services/` 放访问后端 API 和 WebSocket 的客户端函数。
-- `types/` 放前端使用的 TypeScript 数据类型。
-- `components/` 是通用组件预留目录，目前尚未接入实际组件。
+- `app/` 放应用入口、根组件和全局样式。
+- `features/` 放面向用户的业务功能，包括鉴权、游戏主界面、复盘、语音和后续房间能力。
+- `services/` 封装后端 HTTP API、WebSocket 地址和音频资源地址。
+- `types/` 放前端共享的 TypeScript 类型，主要对应后端 Pydantic 响应。
+- `components/` 预留跨 feature 复用的通用组件。
 
 ## 常见修改入口
 
-- 改狼人杀主界面：`features/game/`。
-- 改全局样式或应用挂载：`app/`。
-- 改接口地址、请求函数、错误处理：`services/`。
-- 改数据结构声明：`types/`。
+- 改登录、注册、密码重置入口：看 `features/auth/`。
+- 改狼人杀桌面、真人行动面板、主持播报、背景音、模型设置和复盘入口：看 `features/game/`。
+- 改复盘弹窗、事件文案或分组选项：看 `features/review/`。
+- 改固定主持语音播放：看 `features/voice/`。
+- 改接口地址、请求函数或错误处理：看 `services/`。
+- 改 API 字段类型：看 `types/`，并同步后端 `backend/app/sessions/models.py` 或鉴权 schemas。
 
-## 边界说明
+## 维护边界
 
-业务页面应通过 `services/` 访问后端，通过 `types/` 共享数据结构，避免在组件中散落硬编码 API 路径和重复类型。
+业务页面通过 `services/` 访问后端，通过 `types/` 约束数据结构。前端可以做展示态和表单校验，但不要复制后端狼人杀规则。

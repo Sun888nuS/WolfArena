@@ -36,14 +36,42 @@ export interface PendingAction {
   can_skip: boolean; // 特殊行动是否可跳过
 }
 
-/** 上帝流程进度条的单个步骤。 */
+/** 主持流程进度条的单个步骤。 */
 export interface GodStep {
   key: string; // 步骤唯一 key
   label: string; // 中文展示名
   status: "done" | "active" | "pending"; // 步骤状态
 }
 
+/** 中央主持播报及自动推进节奏。 */
+export interface HostCue {
+  cue_id: string; // 播报节点稳定 id，用于同步文字、语音和自动推进
+  message: string; // 主持主文案
+  follow_up_message: string | null; // 同一节点内的补充播报，例如闭眼
+  voice_key: string | null; // 主文案固定语音 key
+  follow_up_voice_key: string | null; // 补充播报固定语音 key
+  voice_pause_ms: number; // 主语音结束后到补充语音开始前的停顿
+  hold_ms: number; // 自动推进前建议停留时间
+  visible: boolean; // false 时保留上一条玩家可见播报
+  blocks_auto_advance: boolean; // 是否等待语音队列结束后再自动推进
+}
+
 /** 单局游戏的完整前端快照。 */
+/** 真人视角的游戏辅助面板条目。 */
+export interface AssistantPanelItem {
+  label: string;
+  value: string;
+  tone: "default" | "good" | "bad" | "warning" | "muted";
+}
+
+/** 根据真人身份生成的局内辅助面板。 */
+export interface AssistantPanelData {
+  role: string;
+  title: string;
+  summary: string;
+  items: AssistantPanelItem[];
+}
+
 export interface GameSnapshot {
   game_id: string; // 游戏 id
   human_player_id: string; // 真人玩家 id
@@ -57,8 +85,10 @@ export interface GameSnapshot {
   known_werewolves: string[]; // 真人狼人可见队友
   seer_results: Record<string, string>; // 真人预言家查验结果
   llm_status: string; // 大模型配置状态
-  god_message: string; // 上帝播报文案
+  god_message: string; // 兼容旧前端的主持播报文案
+  host_cue?: HostCue; // 中央主持播报
   god_steps: GodStep[]; // 流程进度条
+  assistant_panel: AssistantPanelData; // 真人视角游戏辅助面板
   current_actor_id: string | null; // 当前高亮行动者 id
   sheriff_id: string | null; // 当前警长 id
   sheriff_badge_lost: boolean; // 警徽是否流失

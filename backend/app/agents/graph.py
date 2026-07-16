@@ -116,6 +116,9 @@ class GameGraphState(TypedDict, total=False):
     event_cursor: int  # 已同步到公共记忆的事件游标
     wolf_consensus_attempts: int  # 狼队统一目标尝试次数
     pending_wolf_proposals: dict[str, str]  # 当前夜晚狼队提案
+    wolf_nomination_proposals: dict[str, str]  # 第一轮刀人建议，用于二轮统一展示
+    wolf_revote_candidates: list[str]  # 二轮统一目标候选人
+    wolf_kill_resolution: dict[str, object]  # 最终刀口和裁定原因
     pending_seer_decision: dict[str, object]  # 待提交的预言家决策
     pending_witch_decision: dict[str, object]  # 待提交的女巫决策
     reaction_queue: list[str]  # 等待处理死亡反应的玩家
@@ -207,6 +210,9 @@ class WerewolfGraphController:
             before,
             next_node="__end__",
             pending_wolf_proposals={},
+            wolf_nomination_proposals={},
+            wolf_revote_candidates=[],
+            wolf_kill_resolution={},
             pending_seer_decision={},
             pending_witch_decision={},
             pending_sheriff_candidates=[],
@@ -428,6 +434,9 @@ class WerewolfGraphController:
                 "vote_order": [],
                 "vote_index": 0,
                 "pending_wolf_proposals": {},
+                "wolf_nomination_proposals": {},
+                "wolf_revote_candidates": [],
+                "wolf_kill_resolution": {},
                 "wolf_consensus_attempts": 0,
             },
             engine,
@@ -449,9 +458,12 @@ class WerewolfGraphController:
         engine = _engine_from_state(state)
         before = _trace_summary(engine.state)
         proposals = dict(state.get("pending_wolf_proposals") or {})
+        revote_candidates = list(state.get("wolf_revote_candidates") or [])
+        legal_targets = revote_candidates or legal_werewolf_targets(engine.state)
         public_memory = dict(state.get("public_memory") or {})
         private_memories = dict(state.get("private_memories") or {})
         wolf_shared_memory = dict(state.get("wolf_shared_memory") or {})
+        is_revote = bool(revote_candidates)
 
         for wolf in sorted(alive_werewolves(engine.state), key=lambda player: player.seat):
             if wolf.player_id in proposals:
@@ -460,26 +472,37 @@ class WerewolfGraphController:
                 request = PendingActionResponse(
                     action_type="werewolf_kill",
                     player_id=HUMAN_PLAYER_ID,
-                    prompt="你是狼人，请提交今晚的刀人建议。狼队共享夜间信息，稍后会统一目标。",
-                    legal_targets=legal_werewolf_targets(engine.state),
+                    prompt=(
+                        "狼队第一轮目标不一致，请在已被提名的候选中投出最终刀口。"
+                        if is_revote
+                        else "你是狼人，请提交今晚的刀人建议。若狼队意见不一致，将进入一次统一目标投票。"
+                    ),
+                    legal_targets=legal_targets,
                 )
                 payload = _interrupt_for_human(engine, request, self._pending_sink)
                 submit = SubmitActionRequest.model_validate(payload)
                 if submit.target_id is None:
                     raise InvalidActionError("狼人行动需要选择目标。")
+                if submit.target_id not in legal_targets:
+                    raise InvalidActionError("非法狼人袭击目标。")
                 proposals[wolf.player_id] = submit.target_id
                 break
 
             decision = await self._agent_for(engine, wolf.player_id).decide(
                 engine.state,
-                "作为狼人提出今晚刀人建议",
+                (
+                    "Wolf first-round kill intents disagree. Vote once for the final kill target "
+                    "from the nominated candidates only."
+                    if is_revote
+                    else "As a werewolf, propose tonight's kill target."
+                ),
                 public_memory=public_memory,
                 private_memories=private_memories,
                 wolf_shared_memory=wolf_shared_memory,
             )
             proposals[wolf.player_id] = _target_or_first(
                 decision,
-                legal_werewolf_targets(engine.state),
+                legal_targets,
             )
             if decision.memory_note:
                 wolf_shared_memory = add_wolf_strategy_note(
@@ -515,8 +538,11 @@ class WerewolfGraphController:
         attempts = int(state.get("wolf_consensus_attempts", 0)) + 1
         targets = list(proposals.values())
         selected = _consensus_target(targets)
-        if selected is not None or attempts >= 2:
-            selected = selected or _most_common_or_first(targets, legal_werewolf_targets(engine.state))
+
+        for actor_id, target_id in _wolf_actor_proposals(engine.state, proposals).items():
+            engine.record_werewolf_kill_intent(actor_id, target_id)
+
+        if selected is not None:
             return _with_trace(
                 state,
                 engine,
@@ -525,7 +551,30 @@ class WerewolfGraphController:
                 next_node="wolf_commit_kill",
                 wolf_consensus_attempts=attempts,
                 pending_wolf_proposals={**proposals, "_consensus": selected},
+                wolf_kill_resolution={
+                    "target_id": selected,
+                    "reason": "consensus",
+                    "round": attempts,
+                },
             )
+
+        if attempts >= 2:
+            selected, reason = _resolve_wolf_final_target(engine.state, proposals)
+            return _with_trace(
+                state,
+                engine,
+                "wolf_consensus",
+                before,
+                next_node="wolf_commit_kill",
+                wolf_consensus_attempts=attempts,
+                pending_wolf_proposals={**proposals, "_consensus": selected},
+                wolf_kill_resolution={
+                    "target_id": selected,
+                    "reason": reason,
+                    "round": attempts,
+                },
+            )
+        candidates = _wolf_candidate_targets(engine.state, proposals)
         return _with_trace(
             state,
             engine,
@@ -533,16 +582,16 @@ class WerewolfGraphController:
             before,
             next_node="wolf_reconcile",
             wolf_consensus_attempts=attempts,
+            wolf_nomination_proposals=proposals,
+            wolf_revote_candidates=candidates,
         )
 
     async def _wolf_reconcile(self, state: GameGraphState) -> GameGraphState:
         """在狼队意见不一致时执行一次确定性二次协调。"""
         engine = _engine_from_state(state)
         before = _trace_summary(engine.state)
-        proposals = dict(state.get("pending_wolf_proposals") or {})
-        target = _most_common_or_first(list(proposals.values()), legal_werewolf_targets(engine.state))
-        wolves = sorted(player.player_id for player in alive_werewolves(engine.state))
-        proposals = {wolf_id: target for wolf_id in wolves}
+        proposals = dict(state.get("wolf_nomination_proposals") or state.get("pending_wolf_proposals") or {})
+        candidates = list(state.get("wolf_revote_candidates") or _wolf_candidate_targets(engine.state, proposals))
         wolf_shared_memory = set_wolf_proposals(
             dict(state.get("wolf_shared_memory") or {}),
             proposals,
@@ -550,15 +599,17 @@ class WerewolfGraphController:
         )
         wolf_shared_memory = add_wolf_strategy_note(
             wolf_shared_memory,
-            f"第 {engine.state.round_no} 夜二次协调后统一目标 {player_label_by_id(engine.state, target)}。",
+            f"第 {engine.state.round_no} 夜第一轮刀人意见不一致，进入一次统一目标投票。",
         )
         return _with_trace(
             state,
             engine,
             "wolf_reconcile",
             before,
-            next_node="wolf_consensus",
-            pending_wolf_proposals=proposals,
+            next_node="wolf_collect_proposals",
+            pending_wolf_proposals={},
+            wolf_nomination_proposals=proposals,
+            wolf_revote_candidates=candidates,
             wolf_shared_memory=wolf_shared_memory,
         )
 
@@ -574,7 +625,8 @@ class WerewolfGraphController:
         actor_id = _first_living_wolf_id(engine.state)
         if actor_id is None:
             raise InvalidActionError("没有存活狼人可以行动。")
-        engine.select_werewolf_kill(actor_id, target)
+        if engine.state.night_actions.werewolf_target_id != target:
+            engine.select_werewolf_kill(actor_id, target)
         wolf_shared_memory = commit_wolf_kill(
             dict(state.get("wolf_shared_memory") or {}),
             round_no=engine.state.round_no,
@@ -596,6 +648,8 @@ class WerewolfGraphController:
             event_cursor=cursor,
             wolf_shared_memory=wolf_shared_memory,
             pending_wolf_proposals={},
+            wolf_nomination_proposals={},
+            wolf_revote_candidates=[],
         )
 
     async def _seer_action(self, state: GameGraphState) -> GameGraphState:
@@ -759,7 +813,7 @@ class WerewolfGraphController:
         engine = _engine_from_state(state)
         before = _trace_summary(engine.state)
         hunter_id = engine.living_role(Role.HUNTER)
-        if hunter_id and engine.state.night_actions.hunter_actor_id is None:
+        if engine.state.round_no == 1 and hunter_id and engine.state.night_actions.hunter_actor_id is None:
             engine.confirm_hunter_status(hunter_id)
         public_memory, cursor = sync_new_public_events(
             engine.state,
@@ -781,7 +835,7 @@ class WerewolfGraphController:
         engine = _engine_from_state(state)
         before = _trace_summary(engine.state)
         idiot_id = engine.living_role(Role.IDIOT)
-        if idiot_id and engine.state.night_actions.idiot_actor_id is None:
+        if engine.state.round_no == 1 and idiot_id and engine.state.night_actions.idiot_actor_id is None:
             engine.confirm_idiot(idiot_id)
         public_memory, cursor = sync_new_public_events(
             engine.state,
@@ -1827,6 +1881,9 @@ class WerewolfGraphController:
             speech_direction=None,
             completed_speech_stream_ids=[],
             pending_wolf_proposals={},
+            wolf_nomination_proposals={},
+            wolf_revote_candidates=[],
+            wolf_kill_resolution={},
             wolf_consensus_attempts=0,
         )
 
@@ -2038,6 +2095,9 @@ def _state_from_engine(engine: WerewolfEngine) -> GameGraphState:
         "event_cursor": len(engine.state.events),
         "wolf_consensus_attempts": 0,
         "pending_wolf_proposals": {},
+        "wolf_nomination_proposals": {},
+        "wolf_revote_candidates": [],
+        "wolf_kill_resolution": {},
         "pending_seer_decision": {},
         "pending_witch_decision": {},
         "reaction_queue": [],
@@ -2294,6 +2354,50 @@ def _most_common_or_first(targets: list[str], fallback_targets: list[str]) -> st
     if not fallback_targets:
         raise InvalidActionError("当前没有合法目标。")
     return fallback_targets[0]
+
+
+def _wolf_actor_proposals(state: GameState, proposals: dict[str, str]) -> dict[str, str]:
+    """Return only living-wolf proposal entries, in seat order."""
+    living_wolf_ids = [player.player_id for player in sorted(alive_werewolves(state), key=lambda item: item.seat)]
+    return {
+        wolf_id: proposals[wolf_id]
+        for wolf_id in living_wolf_ids
+        if wolf_id in proposals and proposals[wolf_id]
+    }
+
+
+def _wolf_candidate_targets(state: GameState, proposals: dict[str, str]) -> list[str]:
+    """Return first-round nominated targets, sorted by table seat."""
+    legal_targets = set(legal_werewolf_targets(state))
+    candidate_ids = {
+        target_id
+        for target_id in proposals.values()
+        if target_id in legal_targets
+    }
+    return [
+        player.player_id
+        for player in sorted(alive_players(state), key=lambda item: item.seat)
+        if player.player_id in candidate_ids
+    ]
+
+
+def _resolve_wolf_final_target(state: GameState, proposals: dict[str, str]) -> tuple[str, str]:
+    """Resolve the second wolf vote without creating another revote loop."""
+    actor_proposals = _wolf_actor_proposals(state, proposals)
+    if not actor_proposals:
+        return _most_common_or_first([], legal_werewolf_targets(state)), "fallback_first_legal"
+
+    counts = Counter(actor_proposals.values())
+    top_count = max(counts.values())
+    top_targets = sorted(target_id for target_id, count in counts.items() if count == top_count)
+    if len(top_targets) == 1:
+        return top_targets[0], "majority"
+
+    lead_wolf_id = _first_living_wolf_id(state)
+    lead_choice = actor_proposals.get(lead_wolf_id or "")
+    if lead_choice in top_targets:
+        return lead_choice, "lead_wolf_tiebreak"
+    return top_targets[0], "seat_tiebreak"
 
 
 def _first_living_wolf_id(state: GameState) -> str | None:

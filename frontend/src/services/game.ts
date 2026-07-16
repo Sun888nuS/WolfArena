@@ -4,6 +4,8 @@ import type { LlmConfigStatus, UpdateLlmConfigPayload } from "../types/health";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8000"; // 后端 HTTP 基础地址
 
+export type BackgroundAudioTrack = "day" | "night" | "vote";
+
 /** 创建一局新游戏，并返回初始快照。 */
 export async function startGame(playerName: string): Promise<GameSnapshot> {
   const response = await fetch(`${API_BASE_URL}/api/games`, {
@@ -109,4 +111,14 @@ export function gameWebSocketUrl(gameId: string): string {
   base.pathname = `/ws/games/${gameId}`;
   base.search = "";
   return base.toString();
+}
+
+/** 返回白名单背景音资源地址。 */
+export function backgroundAudioUrl(track: BackgroundAudioTrack): string {
+  return `${API_BASE_URL}/api/voice/background/${track}.mp3`;
+}
+
+/** 返回固定主持语音资源地址。 */
+export function hostVoiceUrl(voiceKey: string): string {
+  return `${API_BASE_URL}/api/voice/host/fixed/${voiceKey}.mp3`;
 }

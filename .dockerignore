@@ -20,6 +20,14 @@ frontend/tsconfig.tsbuildinfo
 
 frontend-build-test
 data
+!data/
+!data/day.mp3
+!data/night.mp3
+!data/vote.mp3
+!data/voice/
+!data/voice/host/
+!data/voice/host/fixed/
+!data/voice/host/fixed/*.mp3
 logs
 __pycache__
 *.pyc

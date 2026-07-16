@@ -1,16 +1,23 @@
 # backend/app/voice
 
-语音能力预留目录。
+音频资源接口目录，负责向前端提供白名单内的背景音乐和固定主持语音文件。
 
-## 这里负责什么
+## 文件分工
 
-当前目录只有初始化文件，尚未接入语音输入、语音播报或实时音频能力。
+- `background_audio.py` 挂载 `/api/voice/background`，提供 `day`、`night`、`vote` 三类背景音乐及 manifest。
+- `host_voice.py` 挂载 `/api/voice/host/fixed`，提供固定主持语音文件及 manifest。
+- `__init__.py` 保留包初始化。
 
-## 后续适合放什么
+## 资源查找
 
-- 语音转文字、文字转语音、实时语音房间等后端适配代码。
-- 与游戏事件流绑定的播报队列或音频任务管理。
+两个路由都会在本地开发路径和容器路径之间查找音频资源。请求时只允许访问代码中列出的 key，避免把任意文件路径暴露给前端。
 
-## 边界说明
+## 常见修改入口
 
-语音模块只应消费或产生用户输入/播报内容，不应直接修改游戏规则状态。真人行动仍应经过 `sessions` 和 `core`。
+- 新增背景音乐类型：改 `background_audio.py` 的白名单，并同步 `frontend/src/services/game.ts` 和 `features/game/useBackgroundAudio.ts`。
+- 新增固定主持语音：改 `host_voice.py` 的白名单，并在 `sessions/snapshots.py` 里使用对应 `voice_key`。
+- 调整前端播放队列、音量或自动推进等待：改 `frontend/src/features/voice/useHostVoice.ts` 和 `frontend/src/features/game/useBackgroundAudio.ts`。
+
+## 维护边界
+
+`voice` 只提供音频资源，不判断游戏阶段，也不修改游戏状态。什么时候播放由 `sessions` 生成的 `host_cue` 和前端播放 hooks 决定。

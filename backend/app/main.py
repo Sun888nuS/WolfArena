@@ -16,6 +16,8 @@ from app.cache.redis_client import close_redis
 from app.config import get_settings
 from app.db.session import close_db, init_db
 from app.sessions.manager import manager
+from app.voice.background_audio import router as background_audio_router
+from app.voice.host_voice import router as host_voice_router
 
 
 def create_app() -> FastAPI:
@@ -51,6 +53,8 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix=settings.api_prefix)
     app.include_router(auth_router, prefix=settings.api_prefix)
     app.include_router(llm_config_router, prefix=settings.api_prefix)
+    app.include_router(background_audio_router, prefix=settings.api_prefix)
+    app.include_router(host_voice_router, prefix=settings.api_prefix)
     app.include_router(games_router, prefix=settings.api_prefix)
     app.include_router(websocket_router)
     return app

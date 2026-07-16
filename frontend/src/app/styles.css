@@ -249,7 +249,9 @@ p {
     radial-gradient(circle at 82% 18%, rgb(60 108 116 / 20%), transparent 34%);
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   padding: 14px;
   transition: background 300ms ease;
   width: 100%;
@@ -297,7 +299,7 @@ h1 {
 .start-controls {
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(120px, 180px) repeat(4, max-content);
+  grid-template-columns: minmax(120px, 180px) repeat(5, max-content);
 }
 
 .start-controls button,
@@ -307,6 +309,48 @@ h1 {
   color: #fff;
   font-weight: 800;
   padding: 10px 14px;
+}
+
+.review-button-wrap {
+  position: relative;
+}
+
+.review-button-wrap button {
+  width: 100%;
+}
+
+.review-hint {
+  background: #172033;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 18%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  left: 50%;
+  line-height: 1.35;
+  max-width: min(240px, 76vw);
+  padding: 8px 10px;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  z-index: 20;
+}
+
+.review-hint::before {
+  background: #172033;
+  border-left: 1px solid rgb(255 255 255 / 14%);
+  border-top: 1px solid rgb(255 255 255 / 14%);
+  content: "";
+  height: 8px;
+  left: 50%;
+  position: absolute;
+  top: -5px;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px;
 }
 
 .start-controls .secondary-button {
@@ -329,6 +373,17 @@ h1 {
 .is-night .start-controls .secondary-button {
   background: rgb(255 255 255 / 10%);
   color: #f4d78c;
+}
+
+.is-night .review-hint {
+  background: #f4d78c;
+  border-color: rgb(255 255 255 / 20%);
+  color: #211704;
+}
+
+.is-night .review-hint::before {
+  background: #f4d78c;
+  border-color: rgb(255 255 255 / 20%);
 }
 
 .start-controls button:hover,
@@ -365,9 +420,11 @@ h1 {
 .layout {
   display: grid;
   gap: 12px;
+  grid-row: 3;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
   margin: 0;
   min-height: 0;
+  overflow: hidden;
   width: 100%;
 }
 
@@ -375,7 +432,9 @@ h1 {
   display: grid;
   gap: 10px;
   grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 .game-status {
@@ -388,6 +447,7 @@ h1 {
 .arena-panel,
 .side-panel,
 .known-info,
+.assistant-card,
 .rule-card,
 .event-item,
 .event-empty,
@@ -402,6 +462,7 @@ h1 {
 .is-night .arena-panel,
 .is-night .side-panel,
 .is-night .known-info,
+.is-night .assistant-card,
 .is-night .rule-card,
 .is-night .event-item,
 .is-night .event-empty,
@@ -460,6 +521,7 @@ h1 {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   min-height: 0;
+  overflow: auto;
   padding: 12px;
 }
 
@@ -992,12 +1054,14 @@ h1 {
   align-content: start;
   display: grid;
   gap: 14px;
-  max-height: calc(100vh - 86px);
+  height: 100%;
+  min-height: 0;
   overflow: auto;
   padding: 14px;
 }
 
 .known-info,
+.assistant-card,
 .rule-card,
 .event-feed {
   display: grid;
@@ -1005,6 +1069,7 @@ h1 {
 }
 
 .known-info,
+.assistant-card,
 .rule-card {
   padding: 14px;
 }
@@ -1025,6 +1090,7 @@ h1 {
 }
 
 .known-info p,
+.assistant-card p,
 .private-list p,
 .private-list ul,
 .rule-card ul {
@@ -1034,6 +1100,7 @@ h1 {
 }
 
 .is-night .known-info p,
+.is-night .assistant-card p,
 .is-night .private-list p,
 .is-night .private-list ul,
 .is-night .rule-card ul {
@@ -1043,6 +1110,77 @@ h1 {
 .rule-card ul,
 .private-list ul {
   padding-left: 18px;
+}
+
+.assistant-list {
+  display: grid;
+  gap: 8px;
+}
+
+.assistant-item {
+  background: #f7faf9;
+  border: 1px solid #e4ece9;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.assistant-item span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.assistant-item strong {
+  color: #172033;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.assistant-item.tone-good strong {
+  color: #16714f;
+}
+
+.assistant-item.tone-bad strong {
+  color: #b42318;
+}
+
+.assistant-item.tone-warning strong {
+  color: #9a5b00;
+}
+
+.assistant-item.tone-muted strong {
+  color: #64748b;
+}
+
+.is-night .assistant-item {
+  background: rgb(255 255 255 / 7%);
+  border-color: rgb(255 255 255 / 12%);
+}
+
+.is-night .assistant-item span {
+  color: #9fb2c7;
+}
+
+.is-night .assistant-item strong {
+  color: #f8fafc;
+}
+
+.is-night .assistant-item.tone-good strong {
+  color: #90e4bd;
+}
+
+.is-night .assistant-item.tone-bad strong {
+  color: #ff9b9b;
+}
+
+.is-night .assistant-item.tone-warning strong {
+  color: #f7c96f;
+}
+
+.is-night .assistant-item.tone-muted strong {
+  color: #9fb2c7;
 }
 
 .identity-row {
@@ -1223,18 +1361,100 @@ h1 {
 }
 
 .llm-settings-dialog {
+  grid-template-rows: auto minmax(0, 1fr) auto;
   max-width: 560px;
 }
 
 .llm-settings-content {
   display: grid;
   gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 18px;
+  scrollbar-gutter: stable;
+}
+
+.settings-section {
+  border: 1px solid #dfeae6;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.is-night .settings-section {
+  border-color: rgb(255 255 255 / 10%);
+}
+
+.settings-section-title {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.settings-section-title span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.settings-section-title strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+.is-night .settings-section-title span {
+  color: #a8b4c0;
+}
+
+.is-night .settings-section-title strong {
+  color: #f8fafc;
 }
 
 .llm-settings-content label {
   display: grid;
   gap: 7px;
+}
+
+.audio-toggle {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.audio-toggle input {
+  accent-color: #245c53;
+  height: 18px;
+  width: 18px;
+}
+
+.audio-toggle span {
+  color: #172033;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.is-night .audio-toggle span {
+  color: #f8fafc;
+}
+
+.audio-volume-control input[type="range"] {
+  accent-color: #245c53;
+  padding: 0;
+  width: 100%;
+}
+
+.settings-note {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.is-night .settings-note {
+  color: #a8b4c0;
 }
 
 .llm-settings-content label span,
@@ -1249,7 +1469,7 @@ h1 {
   color: #a8b4c0;
 }
 
-.llm-settings-content input {
+.llm-settings-content input:not([type="checkbox"]):not([type="range"]) {
   background: #fff;
   border: 1px solid #c7d5d1;
   border-radius: 8px;
@@ -1258,7 +1478,7 @@ h1 {
   padding: 11px 12px;
 }
 
-.is-night .llm-settings-content input {
+.is-night .llm-settings-content input:not([type="checkbox"]):not([type="range"]) {
   background: rgb(255 255 255 / 8%);
   border-color: rgb(255 255 255 / 14%);
   color: #f8fafc;
@@ -1290,6 +1510,19 @@ h1 {
 
 .llm-settings-error {
   margin: 0;
+}
+
+.llm-settings-footer {
+  background: #fff;
+  border-top: 1px solid #e4ece9;
+  display: grid;
+  gap: 10px;
+  padding: 14px 18px;
+}
+
+.is-night .llm-settings-footer {
+  background: #121b26;
+  border-color: rgb(255 255 255 / 12%);
 }
 
 .llm-settings-actions {
@@ -1358,16 +1591,32 @@ h1 {
 @media (max-width: 1180px) {
   .layout {
     grid-template-columns: 1fr;
+    overflow: auto;
+  }
+
+  .arena-column,
+  .arena-panel {
+    overflow: visible;
   }
 
   .side-panel {
+    height: auto;
     max-height: none;
+    overflow: visible;
   }
 }
 
 @media (max-width: 900px) {
   .game-shell {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: visible;
     padding: 12px;
+  }
+
+  .layout {
+    overflow: visible;
   }
 
   .topbar {
@@ -1425,6 +1674,23 @@ h1 {
 }
 
 @media (max-width: 560px) {
+  .rules-overlay {
+    padding: 8px;
+  }
+
+  .llm-settings-dialog {
+    max-height: calc(100dvh - 16px);
+  }
+
+  .llm-settings-content {
+    padding: 14px;
+    scrollbar-gutter: auto;
+  }
+
+  .llm-settings-footer {
+    padding: 12px 14px;
+  }
+
   .auth-form {
     grid-template-columns: 1fr;
   }

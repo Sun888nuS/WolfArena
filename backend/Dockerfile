@@ -15,6 +15,8 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY backend/app ./app
 COPY backend/alembic.ini ./alembic.ini
+COPY data/day.mp3 data/night.mp3 data/vote.mp3 ./data/
+COPY data/voice/host/fixed ./data/voice/host/fixed
 
 EXPOSE 8000
 

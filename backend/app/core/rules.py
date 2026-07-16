@@ -223,7 +223,11 @@ def legal_hunter_shot_targets(state: GameState, hunter_id: str) -> list[str]:
 
 def legal_sheriff_candidates(state: GameState) -> list[str]:
     """返回可竞选警长的玩家。"""
-    return [player.player_id for player in alive_players(state) if player.can_vote]
+    return [
+        player.player_id
+        for player in sorted(alive_players(state), key=lambda item: item.seat)
+        if player.can_vote
+    ]
 
 
 def legal_sheriff_vote_targets(state: GameState, voter_id: str) -> list[str]:

@@ -100,6 +100,37 @@ class GodStepResponse(BaseModel):
     status: Literal["done", "active", "pending"]  # 步骤状态
 
 
+class HostCueResponse(BaseModel):
+    """中央主持播报的玩家可见文案和节奏控制。"""
+
+    cue_id: str = ""  # 播报节点稳定 id，用于前端同步语音和自动推进
+    message: str = ""  # 主持主文案
+    follow_up_message: str | None = None  # 同一流程节点内的补充播报，例如闭眼
+    voice_key: str | None = None  # 主文案固定语音 key
+    follow_up_voice_key: str | None = None  # 补充播报固定语音 key
+    voice_pause_ms: int = 0  # 主语音结束后到补充语音开始前的停顿
+    hold_ms: int = 650  # 前端自动推进前建议停留时间
+    visible: bool = True  # False 时前端保留上一条玩家可见播报
+    blocks_auto_advance: bool = True  # 是否等待语音队列结束后再自动推进
+
+
+class AssistantPanelItemResponse(BaseModel):
+    """真人视角的游戏辅助面板条目。"""
+
+    label: str
+    value: str
+    tone: Literal["default", "good", "bad", "warning", "muted"] = "default"
+
+
+class AssistantPanelResponse(BaseModel):
+    """根据真人身份生成的局内辅助面板。"""
+
+    role: str
+    title: str
+    summary: str = ""
+    items: list[AssistantPanelItemResponse] = Field(default_factory=list)
+
+
 class GameSnapshotResponse(BaseModel):
     """单局游戏的前端完整快照。"""
 
@@ -115,8 +146,12 @@ class GameSnapshotResponse(BaseModel):
     known_werewolves: list[str] = Field(default_factory=list)  # 真人狼人可见队友
     seer_results: dict[str, str] = Field(default_factory=dict)  # 真人预言家查验结果
     llm_status: str = "unknown"  # LLM 配置状态
-    god_message: str = ""  # 上帝播报
+    god_message: str = ""  # 兼容旧前端的主持播报文案
+    host_cue: HostCueResponse = Field(default_factory=HostCueResponse)  # 中央主持播报
     god_steps: list[GodStepResponse] = Field(default_factory=list)  # 流程进度
+    assistant_panel: AssistantPanelResponse = Field(
+        default_factory=lambda: AssistantPanelResponse(role="", title="游戏辅助")
+    )
     current_actor_id: str | None = None  # 当前高亮行动者
     sheriff_id: str | None = None  # 当前警长 id
     sheriff_badge_lost: bool = False  # 警徽是否流失

@@ -11,9 +11,15 @@ import {
   submitAction,
   updateLlmConfig,
 } from "../../services/game";
+import {
+  useBackgroundAudio,
+  type BackgroundAudioPlaybackStatus,
+} from "./useBackgroundAudio";
+import { useHostVoice, type HostVoiceStatus } from "../voice/useHostVoice";
 import type { AuthUser } from "../../types/auth";
 import type {
   AgentReplyStreamMessage,
+  AssistantPanelData,
   GameEvent,
   GameSnapshot,
   PendingAction,
@@ -30,9 +36,19 @@ type IdiotRevealChoice = "reveal" | "hide";
 type LockedHumanIdentity = { role: string; alignment: string | null };
 type StreamingReply = AgentReplyStreamMessage & { status: "streaming" | "done" };
 type LlmSettingsForm = { base_url: string; model: string; api_key: string };
+type AudioSettings = {
+  enabled: boolean;
+  volume: number;
+  hostVoiceEnabled: boolean;
+  hostVoiceVolume: number;
+};
 
 // 本地只记录最近游戏 id；后端重启后无法恢复旧局。
 const LAST_GAME_ID_KEY_PREFIX = "wolfarena.lastGameId";
+const AUDIO_ENABLED_KEY = "wolfarena.audio.enabled";
+const AUDIO_VOLUME_KEY = "wolfarena.audio.volume";
+const HOST_VOICE_ENABLED_KEY = "wolfarena.hostVoice.enabled";
+const HOST_VOICE_VOLUME_KEY = "wolfarena.hostVoice.volume";
 
 /** 狼人杀主页面，负责连接快照、真人操作和桌面展示。 */
 export function GamePage({
@@ -54,6 +70,7 @@ export function GamePage({
   const [idiotRevealChoice, setIdiotRevealChoice] = useState<IdiotRevealChoice>("reveal");
   const [rulesOpen, setRulesOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewHint, setReviewHint] = useState("");
   const [llmSettingsOpen, setLlmSettingsOpen] = useState(false);
   const [llmConfig, setLlmConfig] = useState<LlmConfigStatus | null>(null);
   const [llmForm, setLlmForm] = useState<LlmSettingsForm>({
@@ -63,18 +80,91 @@ export function GamePage({
   });
   const [llmSettingsLoading, setLlmSettingsLoading] = useState(false);
   const [llmSettingsError, setLlmSettingsError] = useState("");
+  const [audioSettings, setAudioSettings] = useState<AudioSettings>(() => readStoredAudioSettings());
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [autoAdvancing, setAutoAdvancing] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const [streamingReply, setStreamingReply] = useState<StreamingReply | null>(null);
+  const [hostFollowUpMessage, setHostFollowUpMessage] = useState<{
+    gameId: string;
+    cueKey: string;
+    text: string;
+  } | null>(null);
   const activeGameIdRef = useRef<string | null>(null);
   const advanceInFlightRef = useRef(false);
+  const reviewHintTimerRef = useRef<number | null>(null);
   const lockedHumanIdentitiesRef = useRef<Map<string, LockedHumanIdentity>>(new Map());
   const lastGameIdKey = useMemo(
     () => `${LAST_GAME_ID_KEY_PREFIX}.${currentUser.id}`,
     [currentUser.id],
   );
+  const isStreamingReplyActive = Boolean(
+    streamingReply &&
+      streamingReply.game_id === snapshot?.game_id &&
+      streamingReply.status === "streaming",
+  );
+  const hostVoice = useHostVoice({
+    snapshot,
+    enabled: audioSettings.hostVoiceEnabled,
+    volume: audioSettings.hostVoiceVolume,
+    mutedByStreaming: isStreamingReplyActive,
+  });
+  const backgroundAudio = useBackgroundAudio({
+    snapshot,
+    settings: audioSettings,
+    voiceDucking: hostVoice.speaking,
+  });
+
+  useEffect(() => {
+    if (
+      (!audioSettings.enabled && !audioSettings.hostVoiceEnabled) ||
+      !snapshot ||
+      snapshot.phase === "game_over"
+    ) {
+      return;
+    }
+    const unlock = () => {
+      if (audioSettings.enabled) {
+        backgroundAudio.unlock(backgroundAudio.track ?? audioTrackForSnapshot(snapshot), audioSettings.volume);
+      }
+      if (audioSettings.hostVoiceEnabled) {
+        hostVoice.unlock();
+      }
+    };
+    window.addEventListener("pointerdown", unlock, { once: true, capture: true });
+    window.addEventListener("keydown", unlock, { once: true, capture: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlock, { capture: true });
+      window.removeEventListener("keydown", unlock, { capture: true });
+    };
+  }, [
+    audioSettings.enabled,
+    audioSettings.hostVoiceEnabled,
+    audioSettings.volume,
+    backgroundAudio.track,
+    backgroundAudio.unlock,
+    hostVoice.unlock,
+    snapshot,
+  ]);
+
+  function updateAudioSettings(next: AudioSettings) {
+    setAudioSettings(next);
+    window.localStorage.setItem(AUDIO_ENABLED_KEY, next.enabled ? "true" : "false");
+    window.localStorage.setItem(AUDIO_VOLUME_KEY, String(next.volume));
+    window.localStorage.setItem(HOST_VOICE_ENABLED_KEY, next.hostVoiceEnabled ? "true" : "false");
+    window.localStorage.setItem(HOST_VOICE_VOLUME_KEY, String(next.hostVoiceVolume));
+  }
+
+  function handleAudioSettingsChange(next: AudioSettings) {
+    updateAudioSettings(next);
+    if (next.enabled) {
+      backgroundAudio.unlock(backgroundAudio.track ?? audioTrackForSnapshot(snapshot) ?? "night", next.volume);
+    }
+    if (next.hostVoiceEnabled) {
+      hostVoice.unlock();
+    }
+  }
 
   function applySnapshot(
     data: GameSnapshot,
@@ -189,28 +279,67 @@ export function GamePage({
     return () => socket.close();
   }, [snapshot?.game_id]);
 
-  // 没有真人待行动时自动推进系统流程。
+  const hostCue = snapshot?.host_cue ?? null;
+  const hostCueKey = snapshot
+    ? [
+        snapshot.game_id,
+        snapshot.round_no,
+        snapshot.phase,
+        hostCue?.message ?? snapshot.god_message,
+        hostCue?.follow_up_message ?? "",
+        snapshot.pending_action?.action_type ?? "",
+        snapshot.current_actor_id ?? "",
+      ].join("|")
+    : "";
+
   useEffect(() => {
-    const isStreaming = Boolean(
-      streamingReply &&
-        streamingReply.game_id === snapshot?.game_id &&
-        streamingReply.status === "streaming",
-    );
+    setHostFollowUpMessage(null);
+    if (!snapshot || !hostCue?.visible || !hostCue.follow_up_message || snapshot.pending_action) return;
+    if (audioSettings.hostVoiceEnabled && hostCue.voice_key) return;
+    const delay = Math.max(450, Math.floor((hostCue.hold_ms || 1200) * 0.55));
+    const timer = window.setTimeout(() => {
+      setHostFollowUpMessage({
+        gameId: snapshot.game_id,
+        cueKey: hostCueKey,
+        text: hostCue.follow_up_message ?? "",
+      });
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [
+    audioSettings.hostVoiceEnabled,
+    hostCueKey,
+    hostCue?.visible,
+    hostCue?.voice_key,
+    hostCue?.follow_up_message,
+    hostCue?.hold_ms,
+    snapshot?.game_id,
+    snapshot?.pending_action,
+  ]);
+
+  // 没有真人待行动时自动推进主持流程。
+  useEffect(() => {
     if (
       !snapshot ||
       !socketConnected ||
-      isStreaming ||
+      isStreamingReplyActive ||
       snapshot.pending_action ||
       snapshot.phase === "game_over" ||
       autoAdvancing
     ) {
       return;
     }
+    const blocksByVoice = snapshot.host_cue?.blocks_auto_advance ?? false;
+    if (blocksByVoice && !hostVoice.readyForAdvance) return;
+    const holdMs = blocksByVoice
+      ? 220
+      : snapshot.host_cue?.visible === false
+        ? 150
+        : snapshot.host_cue?.hold_ms ?? 650;
     const timer = window.setTimeout(() => {
       void handleAdvance();
-    }, 650);
+    }, holdMs);
     return () => window.clearTimeout(timer);
-  }, [snapshot, socketConnected, streamingReply, autoAdvancing]);
+  }, [snapshot, socketConnected, isStreamingReplyActive, autoAdvancing, hostVoice.readyForAdvance]);
 
   useEffect(() => {
     if (!streamingReply || streamingReply.status !== "done") return;
@@ -220,6 +349,14 @@ export function GamePage({
     }, 800);
     return () => window.clearTimeout(timer);
   }, [streamingReply?.stream_id, streamingReply?.status]);
+
+  useEffect(() => {
+    return () => {
+      if (reviewHintTimerRef.current !== null) {
+        window.clearTimeout(reviewHintTimerRef.current);
+      }
+    };
+  }, []);
 
   const playersById = useMemo(() => {
     const out = new Map<string, PublicPlayer>();
@@ -232,6 +369,17 @@ export function GamePage({
   const selectedPlayer = selectedTarget ? playersById.get(selectedTarget) ?? null : null;
   const activeStreamingReply =
     streamingReply && streamingReply.game_id === snapshot?.game_id ? streamingReply : null;
+  const hostVoiceFollowUpMessage =
+    hostVoice.followUpCueId && hostVoice.followUpCueId === hostCue?.cue_id
+      ? hostCue?.follow_up_message ?? ""
+      : "";
+  const activeHostFollowUpMessage =
+    hostVoiceFollowUpMessage ||
+    (hostFollowUpMessage &&
+    hostFollowUpMessage.gameId === snapshot?.game_id &&
+    hostFollowUpMessage.cueKey === hostCueKey
+      ? hostFollowUpMessage.text
+      : "");
   const isNight = snapshot?.phase === "night";
   const aliveCount = snapshot?.players.filter((player) => player.alive).length ?? 0;
 
@@ -239,6 +387,12 @@ export function GamePage({
   async function handleStart() {
     setLoading(true);
     setError("");
+    if (audioSettings.enabled) {
+      backgroundAudio.unlock("night", audioSettings.volume);
+    }
+    if (audioSettings.hostVoiceEnabled) {
+      hostVoice.unlock();
+    }
     try {
       const data = await startGame(playerName.trim() || "Sunny");
       applySnapshot(data, { makeActive: true });
@@ -256,14 +410,27 @@ export function GamePage({
   function handleOpenReview() {
     setError("");
     if (!snapshot) {
-      setError("暂无可复盘的游戏");
+      showReviewHint("暂无可复盘的游戏");
       return;
     }
     if (snapshot.phase !== "game_over") {
-      setError("游戏进行中，无法查看复盘");
+      showReviewHint("游戏结束后可查看复盘");
       return;
     }
+    setReviewHint("");
     setReviewOpen(true);
+  }
+
+  /** 在复盘按钮旁展示短提示，不占用全局错误区域。 */
+  function showReviewHint(message: string) {
+    setReviewHint(message);
+    if (reviewHintTimerRef.current !== null) {
+      window.clearTimeout(reviewHintTimerRef.current);
+    }
+    reviewHintTimerRef.current = window.setTimeout(() => {
+      setReviewHint("");
+      reviewHintTimerRef.current = null;
+    }, 1500);
   }
 
   /** 强制结束当前对局，保留已有事件供之后复盘。 */
@@ -428,9 +595,12 @@ export function GamePage({
           <button className="secondary-button" onClick={() => setRulesOpen(true)} type="button">
             查看规则
           </button>
-          <button className="secondary-button" onClick={handleOpenReview} type="button">
-            游戏复盘
-          </button>
+          <div className="review-button-wrap">
+            <button className="secondary-button" onClick={handleOpenReview} type="button">
+              游戏复盘
+            </button>
+            {reviewHint ? <span className="review-hint">{reviewHint}</span> : null}
+          </div>
           <button
             className="danger-button"
             onClick={() => void handleEndGame()}
@@ -456,6 +626,7 @@ export function GamePage({
               witchChoice={witchChoice}
               autoAdvancing={autoAdvancing}
               streamingReply={activeStreamingReply}
+              hostMessageOverride={activeHostFollowUpMessage}
               sheriffId={snapshot?.sheriff_id ?? null}
               onSelectPlayer={handleSelectPlayer}
             />
@@ -487,7 +658,7 @@ export function GamePage({
 
         <aside className="side-panel">
           <KnownInfo snapshot={snapshot} playersById={playersById} />
-          <RuleCard />
+          <AssistantPanel panel={snapshot?.assistant_panel ?? null} />
           <EventFeed
             events={snapshot?.events ?? []}
             playersById={playersById}
@@ -510,7 +681,12 @@ export function GamePage({
           form={llmForm}
           loading={llmSettingsLoading}
           error={llmSettingsError}
+          audioSettings={audioSettings}
+          audioTrack={backgroundAudio.track}
+          audioStatus={backgroundAudio.status}
+          hostVoiceStatus={hostVoice.status}
           onChange={setLlmForm}
+          onAudioChange={handleAudioSettingsChange}
           onClose={() => setLlmSettingsOpen(false)}
           onSave={() => void handleSaveLlmSettings()}
         />
@@ -547,7 +723,7 @@ function StatusBadge({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** 方形玩家区，负责在上方和左右两端摆放玩家卡，并展示上帝播报。 */
+/** 方形玩家区，负责在上方和左右两端摆放玩家卡，并展示主持播报。 */
 function PlayerTable({
   snapshot,
   players,
@@ -556,6 +732,7 @@ function PlayerTable({
   witchChoice,
   autoAdvancing,
   streamingReply,
+  hostMessageOverride,
   sheriffId,
   onSelectPlayer,
 }: {
@@ -566,6 +743,7 @@ function PlayerTable({
   witchChoice: WitchChoice;
   autoAdvancing: boolean;
   streamingReply: StreamingReply | null;
+  hostMessageOverride: string;
   sheriffId: string | null;
   onSelectPlayer: (player: PublicPlayer) => void;
 }) {
@@ -597,6 +775,7 @@ function PlayerTable({
         autoAdvancing={autoAdvancing}
         streamingReply={liveStreamingReply}
         streamingActorName={streamingActorName}
+        hostMessageOverride={hostMessageOverride}
       />
       {players.map((player, index) => (
         <PlayerCard
@@ -615,23 +794,43 @@ function PlayerTable({
   );
 }
 
-/** 方形玩家区中央的上帝播报和流程进度。 */
+/** 方形玩家区中央的主持播报和流程进度。 */
 function HostCenter({
   snapshot,
   autoAdvancing,
   streamingReply,
   streamingActorName,
+  hostMessageOverride,
 }: {
   snapshot: GameSnapshot | null;
   autoAdvancing: boolean;
   streamingReply: StreamingReply | null;
   streamingActorName: string;
+  hostMessageOverride: string;
 }) {
-  const message = snapshot?.god_message ?? "点击开始游戏后，上帝会自动主持流程。";
+  const defaultMessage = "点击开始游戏后，主持会自动推进流程。";
+  const hostCue = snapshot?.host_cue ?? null;
+  const [retainedMessage, setRetainedMessage] = useState(defaultMessage);
+
+  useEffect(() => {
+    if (!snapshot) {
+      setRetainedMessage(defaultMessage);
+      return;
+    }
+    if (hostCue?.visible === false) return;
+    const nextMessage = hostCue?.message || snapshot.god_message;
+    if (nextMessage) setRetainedMessage(nextMessage);
+  }, [snapshot?.game_id, hostCue?.message, hostCue?.visible, snapshot?.god_message]);
+
+  const message =
+    hostMessageOverride ||
+    (hostCue?.visible === false
+      ? retainedMessage
+      : hostCue?.message || snapshot?.god_message || defaultMessage);
   const steps = snapshot?.god_steps ?? [];
   return (
     <section className="host-center">
-      <div className="host-kicker">上帝播报</div>
+      <div className="host-kicker">主持播报</div>
       <strong>{streamingReply ? `${streamingActorName} 正在发言` : message}</strong>
       <div className="host-subline">
         {streamingReply
@@ -743,7 +942,7 @@ function ActionPanel(props: {
   if (!pending) {
     return (
       <div className="action-panel muted">
-        <strong>{props.phase === "game_over" ? "对局结束" : "等待上帝流程"}</strong>
+        <strong>{props.phase === "game_over" ? "对局结束" : "等待主持流程"}</strong>
         <span>{props.phase === "game_over" ? "右侧可查看本局复盘。" : "轮到你行动时，操作区会自动切换。"}</span>
       </div>
     );
@@ -1043,21 +1242,34 @@ function KnownInfo({
   );
 }
 
-/** 展示本局固定 12 人配置和胜负条件。 */
-function RuleCard() {
-  return (
-    <div className="rule-card">
-      <div className="panel-title">
-        <span>本局规则</span>
-        <strong>12 人标准局</strong>
+/** 真人视角的身份辅助面板，替代重复规则卡片。 */
+function AssistantPanel({ panel }: { panel: AssistantPanelData | null }) {
+  if (!panel) {
+    return (
+      <div className="assistant-card">
+        <div className="panel-title">
+          <span>游戏辅助</span>
+          <strong>等待开局</strong>
+        </div>
+        <p>开局后这里会按你的身份显示专属备忘。</p>
       </div>
-      <ul>
-        <li>4 狼人、4 村民、预言家、女巫、猎人、白痴。</li>
-        <li>夜晚：狼人刀人，女巫用药，预言家查验，猎人和白痴确认身份。</li>
-        <li>女巫被狼人刀中可以自救；同一晚不能同时救毒。</li>
-        <li>白天有警长竞选、发言、投票、PK 和技能结算。</li>
-        <li>狼人全出局好人胜；村民或神民被屠边狼人胜。</li>
-      </ul>
+    );
+  }
+  return (
+    <div className={`assistant-card assistant-${panel.role || "unknown"}`}>
+      <div className="panel-title">
+        <span>游戏辅助</span>
+        <strong>{panel.title}</strong>
+      </div>
+      {panel.summary ? <p>{panel.summary}</p> : null}
+      <div className="assistant-list">
+        {panel.items.map((item) => (
+          <div className={`assistant-item tone-${item.tone}`} key={`${item.label}-${item.value}`}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1068,7 +1280,12 @@ function LlmSettingsDialog({
   form,
   loading,
   error,
+  audioSettings,
+  audioTrack,
+  audioStatus,
+  hostVoiceStatus,
   onChange,
+  onAudioChange,
   onClose,
   onSave,
 }: {
@@ -1076,7 +1293,12 @@ function LlmSettingsDialog({
   form: LlmSettingsForm;
   loading: boolean;
   error: string;
+  audioSettings: AudioSettings;
+  audioTrack: string | null;
+  audioStatus: BackgroundAudioPlaybackStatus;
+  hostVoiceStatus: HostVoiceStatus;
   onChange: (form: LlmSettingsForm) => void;
+  onAudioChange: (settings: AudioSettings) => void;
   onClose: () => void;
   onSave: () => void;
 }) {
@@ -1086,8 +1308,8 @@ function LlmSettingsDialog({
       <section className="rules-dialog llm-settings-dialog">
         <div className="rules-header">
           <div>
-            <span>模型设置</span>
-            <strong id="llm-settings-title">AI 接口配置</strong>
+            <span>对局偏好</span>
+            <strong id="llm-settings-title">游戏设置</strong>
           </div>
           <button className="icon-button" onClick={onClose} type="button" aria-label="关闭设置">
             ×
@@ -1095,50 +1317,126 @@ function LlmSettingsDialog({
         </div>
 
         <div className="llm-settings-content">
-          <label>
-            <span>API URL</span>
-            <input
-              value={form.base_url}
-              onChange={(event) => onChange({ ...form, base_url: event.target.value })}
-              placeholder="https://api.example.com/v1"
-              disabled={loading}
-            />
-          </label>
-          <label>
-            <span>模型名称</span>
-            <input
-              value={form.model}
-              onChange={(event) => onChange({ ...form, model: event.target.value })}
-              placeholder="gpt-4o-mini"
-              disabled={loading}
-            />
-          </label>
-          <label>
-            <span>API Key</span>
-            <input
-              value={form.api_key}
-              onChange={(event) => onChange({ ...form, api_key: event.target.value })}
-              placeholder={config?.api_key_configured ? "留空保持当前密钥" : "请输入 API Key"}
-              type="password"
-              disabled={loading}
-            />
-          </label>
+          <section className="settings-section">
+            <div className="settings-section-title">
+              <span>声音设置</span>
+              <strong>{audioSettings.enabled ? audioTrackLabel(audioTrack) : "已关闭"}</strong>
+            </div>
+            <label className="audio-toggle">
+              <input
+                checked={audioSettings.enabled}
+                onChange={(event) =>
+                  onAudioChange({
+                    ...audioSettings,
+                    enabled: event.target.checked,
+                  })
+                }
+                type="checkbox"
+              />
+              <span>开启游戏背景音</span>
+            </label>
+            <label className="audio-volume-control">
+              <span>音量 {Math.round(audioSettings.volume * 100)}%</span>
+              <input
+                max="100"
+                min="0"
+                onChange={(event) =>
+                  onAudioChange({
+                    ...audioSettings,
+                    volume: Number(event.target.value) / 100,
+                  })
+                }
+                type="range"
+                value={Math.round(audioSettings.volume * 100)}
+              />
+            </label>
+            <p className="settings-note">
+              {audioStatusNote(audioStatus)}
+            </p>
+            <label className="audio-toggle">
+              <input
+                checked={audioSettings.hostVoiceEnabled}
+                onChange={(event) =>
+                  onAudioChange({
+                    ...audioSettings,
+                    hostVoiceEnabled: event.target.checked,
+                  })
+                }
+                type="checkbox"
+              />
+              <span>开启主持语音</span>
+            </label>
+            <label className="audio-volume-control">
+              <span>主持语音音量 {Math.round(audioSettings.hostVoiceVolume * 100)}%</span>
+              <input
+                max="100"
+                min="0"
+                onChange={(event) =>
+                  onAudioChange({
+                    ...audioSettings,
+                    hostVoiceVolume: Number(event.target.value) / 100,
+                  })
+                }
+                type="range"
+                value={Math.round(audioSettings.hostVoiceVolume * 100)}
+              />
+            </label>
+            <p className="settings-note">
+              {hostVoiceStatusNote(hostVoiceStatus)}
+            </p>
+          </section>
 
-          <div className="llm-settings-meta">
-            <span>当前状态</span>
-            <strong>{config ? llmStatusLabel(config) : loading ? "读取中" : "未读取"}</strong>
-            <span>Key</span>
-            <strong>{config?.api_key_preview || "未配置"}</strong>
-          </div>
+          <section className="settings-section">
+            <div className="settings-section-title">
+              <span>AI 服务</span>
+              <strong>接口配置</strong>
+            </div>
+            <label>
+              <span>API URL</span>
+              <input
+                value={form.base_url}
+                onChange={(event) => onChange({ ...form, base_url: event.target.value })}
+                placeholder="https://api.example.com/v1"
+                disabled={loading}
+              />
+            </label>
+            <label>
+              <span>模型名称</span>
+              <input
+                value={form.model}
+                onChange={(event) => onChange({ ...form, model: event.target.value })}
+                placeholder="gpt-4o-mini"
+                disabled={loading}
+              />
+            </label>
+            <label>
+              <span>API Key</span>
+              <input
+                value={form.api_key}
+                onChange={(event) => onChange({ ...form, api_key: event.target.value })}
+                placeholder={config?.api_key_configured ? "留空保持当前密钥" : "请输入 API Key"}
+                type="password"
+                disabled={loading}
+              />
+            </label>
 
+            <div className="llm-settings-meta">
+              <span>当前状态</span>
+              <strong>{config ? llmStatusLabel(config) : loading ? "读取中" : "未读取"}</strong>
+              <span>Key</span>
+              <strong>{config?.api_key_preview || "未配置"}</strong>
+            </div>
+          </section>
+        </div>
+
+        <div className="llm-settings-footer">
           {error ? <div className="error llm-settings-error">{error}</div> : null}
-
           <div className="llm-settings-actions">
             <button className="secondary-button" onClick={onClose} type="button" disabled={loading}>
-              取消
+              关闭
             </button>
             <button onClick={onSave} type="button" disabled={!canSave}>
-              {loading ? "保存中" : "保存"}
+              {loading ? "保存中" : "保存 AI 配置"}
             </button>
           </div>
         </div>
@@ -1179,7 +1477,7 @@ function RulesDialog({ onClose }: { onClose: () => void }) {
             <h2>游戏流程</h2>
             <ol>
               <li>夜晚：狼人提出刀人意向并统一目标，女巫用药，预言家查验，猎人和白痴确认身份。</li>
-              <li>天亮：上帝公布夜晚死亡情况，并处理猎人开枪、白痴翻牌、警徽移交等死亡反应。</li>
+              <li>天亮：主持公布夜晚死亡情况，并处理猎人开枪、白痴翻牌、警徽移交等死亡反应。</li>
               <li>首个白天：若警徽未流失，进入警长竞选；候选人发言，警下玩家投票。</li>
               <li>白天发言：按座位顺序或警长指定方向发言；有警长时警长最后发言总结。</li>
               <li>投票放逐：存活且有投票权的玩家投票；平票进入 PK，PK 再平票则当日无人出局。</li>
@@ -1483,7 +1781,7 @@ function describeEvent(event: GameEvent, playersById: Map<string, PublicPlayer>)
       : "狼人已提交刀人意向。";
   }
   if (event.type === "night.werewolf_consensus_required") {
-    return "狼人刀人意向不一致，上帝要求重新统一目标。";
+    return "狼人刀人意向不一致，主持要求重新统一目标。";
   }
   if (event.type === "night.seer_checked") {
     return `查验结果：${playerName(String(payload.target_id ?? ""), playersById)} 是 ${alignmentLabel(String(payload.alignment ?? ""))}`;
@@ -1651,6 +1949,56 @@ function winnerLabel(winner?: string | null): string {
   if (winner === "werewolves") return "狼人阵营";
   if (winner === "villagers") return "好人阵营";
   return winner ? winner : "未决";
+}
+
+function audioTrackLabel(track?: string | null): string {
+  if (track === "night") return "夜晚环境音";
+  if (track === "vote") return "投票环境音";
+  if (track === "day") return "白天讨论环境音";
+  return "等待对局";
+}
+
+function audioTrackForSnapshot(snapshot: GameSnapshot | null): "day" | "night" | "vote" | null {
+  if (!snapshot || snapshot.phase === "game_over") return null;
+  if (snapshot.phase === "night") return "night";
+  if (snapshot.phase === "day_vote" || snapshot.phase === "exile_pk_vote") return "vote";
+  if (snapshot.phase === "sheriff_election") {
+    const message = snapshot.host_cue?.message || snapshot.god_message || "";
+    if (snapshot.pending_action?.action_type === "sheriff_vote" || message.includes("\u6295\u7968")) return "vote";
+    return "day";
+  }
+  return "day";
+}
+
+function readStoredAudioSettings(): AudioSettings {
+  const storedEnabled = window.localStorage.getItem(AUDIO_ENABLED_KEY);
+  const enabled = storedEnabled === null ? true : storedEnabled === "true";
+  const storedVolume = Number(window.localStorage.getItem(AUDIO_VOLUME_KEY));
+  const volume = Number.isFinite(storedVolume) ? Math.max(0, Math.min(1, storedVolume)) : 0.35;
+  const storedHostVoiceEnabled = window.localStorage.getItem(HOST_VOICE_ENABLED_KEY);
+  const hostVoiceEnabled =
+    storedHostVoiceEnabled === null ? true : storedHostVoiceEnabled === "true";
+  const storedHostVoiceVolume = Number(window.localStorage.getItem(HOST_VOICE_VOLUME_KEY));
+  const hostVoiceVolume = Number.isFinite(storedHostVoiceVolume)
+    ? Math.max(0, Math.min(1, storedHostVoiceVolume))
+    : 0.85;
+  return { enabled, volume, hostVoiceEnabled, hostVoiceVolume };
+}
+
+function audioStatusNote(status: BackgroundAudioPlaybackStatus): string {
+  if (status === "blocked") return "\u6d4f\u89c8\u5668\u5df2\u963b\u6b62\u81ea\u52a8\u64ad\u653e\uff0c\u8bf7\u5728\u672c\u7a97\u53e3\u5185\u70b9\u51fb\u4e00\u6b21\u4ee5\u542f\u52a8\u80cc\u666f\u97f3\u3002";
+  if (status === "load_failed") return "\u80cc\u666f\u97f3\u8d44\u6e90\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u540e\u7aef\u97f3\u9891\u63a5\u53e3\u6216 data \u76ee\u5f55\u3002";
+  if (status === "waiting") return "\u6b63\u5728\u5c1d\u8bd5\u542f\u52a8\u80cc\u666f\u97f3\u3002";
+  if (status === "playing") return "\u80cc\u666f\u97f3\u4f1a\u968f\u591c\u665a\u3001\u767d\u5929\u8ba8\u8bba\u548c\u6295\u7968\u9636\u6bb5\u81ea\u52a8\u5207\u6362\u3002";
+  return "\u5f00\u5c40\u540e\u5c06\u9ed8\u8ba4\u64ad\u653e\u80cc\u666f\u97f3\u3002";
+}
+
+function hostVoiceStatusNote(status: HostVoiceStatus): string {
+  if (status === "blocked") return "浏览器已阻止主持语音，请在本窗口内点击一次以启用。";
+  if (status === "failed") return "主持语音加载失败时会自动降级为文字播报。";
+  if (status === "playing") return "主持语音播放时，背景音会自动降低。";
+  if (status === "pausing") return "主持语音正在按流程停顿。";
+  return "主持语音会跟随中央主持台词顺序播放。";
 }
 
 function llmStatusLabel(config: LlmConfigStatus): string {
