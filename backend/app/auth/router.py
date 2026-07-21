@@ -40,7 +40,7 @@ def build_auth_service(db_session: AsyncSession, settings: Settings) -> AuthServ
         settings=settings,
     )
 
-
+# 发送注册验证码
 @router.post("/register/send-code", response_model=MessageResponse)
 async def send_register_code(
     payload: SendRegisterCodeRequest,
@@ -57,7 +57,7 @@ async def send_register_code(
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     return MessageResponse(message="验证码已发送")
 
-
+# 验证验证码，创建账号并自动登录
 @router.post("/register", response_model=AuthResponse)
 async def register(
     payload: RegisterRequest,
@@ -84,7 +84,7 @@ async def register(
         await db_session.rollback()
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
-
+#发送重置密码验证码
 @router.post("/password-reset/send-code", response_model=MessageResponse)
 async def send_password_reset_code(
     payload: SendPasswordResetCodeRequest,
@@ -101,7 +101,7 @@ async def send_password_reset_code(
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     return MessageResponse(message="验证码已发送")
 
-
+# 验证验证码，重置密码
 @router.post("/password-reset", response_model=MessageResponse)
 async def reset_password(
     payload: PasswordResetRequest,
@@ -122,7 +122,7 @@ async def reset_password(
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
     return MessageResponse(message="密码已重置")
 
-
+# 邮箱和密码登录
 @router.post("/login", response_model=AuthResponse)
 async def login(
     payload: LoginRequest,
@@ -147,7 +147,7 @@ async def login(
         await db_session.rollback()
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
-
+# 使用刷新令牌换取新的登录凭据。
 @router.post("/refresh", response_model=AuthResponse)
 async def refresh(
     request: Request,
@@ -172,7 +172,7 @@ async def refresh(
         clear_auth_cookies(response, settings)
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
-
+# 撤销当前浏览器会话并清理 Cookie
 @router.post("/logout", response_model=MessageResponse)
 async def logout(
     response: Response,
@@ -187,7 +187,7 @@ async def logout(
     clear_auth_cookies(response, settings)
     return MessageResponse(message="已退出登录")
 
-
+# 根据访问令牌返回当前用户资料
 @router.get("/me", response_model=UserResponse)
 async def me(
     access_token: str | None = Cookie(default=None, alias=ACCESS_COOKIE_NAME),

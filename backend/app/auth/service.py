@@ -29,13 +29,12 @@ from app.db.models import User
 
 class AuthService:
     """Coordinate auth repositories, Redis code storage, mail, and cookies."""
-
     def __init__(
         self,
-        *,
-        repository: AuthRepository,
-        code_store: RedisEmailCodeStore,
-        mail_sender: AliyunMailSender,
+        *, 
+        repository: AuthRepository,  #数据库操作
+        code_store: RedisEmailCodeStore,  #Redis存储生成验证码
+        mail_sender: AliyunMailSender,  #发送邮件验证码
         settings: Settings,
     ) -> None:
         self.repository = repository

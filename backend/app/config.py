@@ -46,7 +46,7 @@ class Settings(BaseSettings):
 
     auth_secret_key: str = Field(default="change-me", validation_alias="AUTH_SECRET_KEY")
     auth_access_token_minutes: int = Field(default=30, validation_alias="AUTH_ACCESS_TOKEN_MINUTES")
-    auth_refresh_token_days: int = Field(default=30, validation_alias="AUTH_REFRESH_TOKEN_DAYS")
+    auth_refresh_token_days: int = Field(default=7, validation_alias="AUTH_REFRESH_TOKEN_DAYS")
     auth_cookie_secure: bool = Field(default=False, validation_alias="AUTH_COOKIE_SECURE")
     auth_cookie_samesite: Literal["lax", "strict", "none"] = Field(
         default="lax",

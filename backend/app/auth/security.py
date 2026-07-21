@@ -58,7 +58,7 @@ def decode_access_token(token: str, settings: Settings) -> UUID | None:
 
 def create_refresh_token() -> str:
     """Create an opaque high-entropy refresh token."""
-    return secrets.token_urlsafe(48)
+    return secrets.token_urlsafe(48) #secrets 模块中用于生成安全随机 Token 的函数，48 字节的随机数
 
 
 def hash_token(token: str) -> str:

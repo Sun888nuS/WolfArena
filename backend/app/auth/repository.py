@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import User, UserSession, utc_now
 
-
+# 查询、创建用户、创建、查询、撤销刷新令牌会话、更新密码和最后登录时间、通过 revoked_at 标记会话失效，而不是立即删除记录
 class AuthRepository:
     """Repository for users and refresh-token sessions."""
 
@@ -23,7 +23,7 @@ class AuthRepository:
     async def get_user_by_id(self, user_id: UUID) -> User | None:
         """Return an active user by id."""
         result = await self.session.execute(select(User).where(User.id == user_id))
-        return result.scalar_one_or_none()
+        return result.scalar_one_or_none() # 取第一条结果，没有则返回 None（不会抛异常）
 
     async def create_user(
         self,

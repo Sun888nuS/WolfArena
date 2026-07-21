@@ -7,7 +7,7 @@ from app.config import get_settings
 _redis_client: Redis | None = None
 
 
-def get_redis_client() -> Redis:
+async def get_redis_client() -> Redis:
     """Return the shared async Redis client."""
     global _redis_client
     if _redis_client is None:

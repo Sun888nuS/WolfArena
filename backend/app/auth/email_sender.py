@@ -12,7 +12,6 @@ import httpx
 from app.auth.exceptions import AuthError
 from app.config import Settings
 
-
 class AliyunMailSender:
     """Send auth emails through Aliyun DirectMail SingleSendMail."""
 
@@ -76,7 +75,7 @@ class AliyunMailSender:
         signed_params = {
             **params,
             "Signature": self._sign(params),
-        }
+        } # 所有参数按阿里云规则签名后，才能通过鉴权验证
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.get(self.settings.aliyun_mail_endpoint, params=signed_params)
         if response.status_code >= 400:

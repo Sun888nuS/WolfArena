@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 import hashlib
-import hmac
+import hmac # 用于验证码的 HMAC 签名，防篡改
 import secrets
 
 from redis.asyncio import Redis
@@ -43,12 +43,12 @@ class RedisEmailCodeStore:
         await self._delete_code(email, purpose="password_reset")
 
     async def _create_code(self, email: str, *, purpose: str) -> str:
-        await self._ensure_send_allowed(email, purpose=purpose)
-        code = f"{secrets.randbelow(1_000_000):06d}"
+        await self._ensure_send_allowed(email, purpose=purpose) # 频率检查——防止短信轰炸
+        code = f"{secrets.randbelow(1_000_000):06d}" #生成 0-999999 的随机数，格式化为 6 位，不足补零
         await self.redis.set(
             self._code_key(email, purpose=purpose),
             self._code_digest(email, code),
-            ex=self.settings.email_code_ttl_seconds,
+            ex=self.settings.email_code_ttl_seconds, # 过期时间
         )
         await self.redis.set(
             self._cooldown_key(email, purpose=purpose),
@@ -56,7 +56,7 @@ class RedisEmailCodeStore:
             ex=self.settings.email_code_cooldown_seconds,
         )
         daily_key = self._daily_key(email, purpose=purpose)
-        count = await self.redis.incr(daily_key)
+        count = await self.redis.incr(daily_key) # 统计今日发送次数
         if count == 1:
             await self.redis.expire(daily_key, 24 * 60 * 60)
         return code
